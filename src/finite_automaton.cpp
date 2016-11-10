@@ -1,7 +1,8 @@
-#include "finite_automaton.h"
-#include <cassert>
 #include <iostream>
+#include <sstream>
 #include <set>
+#include "finite_automaton.h"
+#include "utility.h"
 
 NFA NFA::operator+ (const NFA &that) const {
     NFA res(this);
@@ -14,6 +15,7 @@ NFA NFA::operator| (const NFA &that) const {
 }
 
 NFA & NFA::operator* () {
+    debug("star(NFA@0x%p)\n", this);
     FANode *ns0 = new FANode, *nsa = new FANode;
     nsa->isAccepted = true;
 
@@ -31,7 +33,8 @@ NFA & NFA::operator* () {
 }
 
 NFA & NFA::operator+= (const NFA &that) {
-    assert(this->sa->next.empty());
+    debug("NFA@0x%p + NFA@0x%p\n", this, &that);
+    assertm(this->sa->next.empty(), "The accepted state of NFA@0x%p should not have any succeeding", this);
     this->sa->isAccepted = false;
 
     std::map<FANode *, FANode *> dict;
@@ -43,10 +46,13 @@ NFA & NFA::operator+= (const NFA &that) {
     dict.emplace(that.sa, new FANode);
     dict[that.sa]->isAccepted = true;
     copy(that.s0, dict);
+    this->sa = dict[that.sa];
+
     return *this;
 }
 
 NFA & NFA::operator|= (const NFA &that) {
+    debug("NFA@0x%p | NFA@0x%p\n", this, &that);
     FANode *ns0 = new FANode, *nsa = new FANode;
     nsa->isAccepted = true;
 
@@ -103,6 +109,36 @@ std::ostream & operator<< (std::ostream &os, const NFA &nfa) {
     return os;
 }
 
+std::string NFA::to_mermaid() {
+    std::ostringstream os;
+    std::queue<FANode *> q;
+    std::map<FANode *, unsigned> dict;
+    unsigned index = 0;
+    q.push(this->s0);
+    dict.emplace(this->s0, index++);
+    dict.emplace(this->sa, index++);
+    while (!q.empty()) {
+            auto cur = q.front();
+            q.pop();
+            for (auto n : cur->next) {
+                if (dict.find(n.second) == dict.end()) {
+                    dict.emplace(n.second, index++);
+                    q.push(n.second);
+                }
+                os << "s" << dict[cur] << "--";
+                if (n.first == EPSILON)
+                    os << "eplisoin";
+                else
+                    os << n.first;
+                os << "-->" << "s" << dict[n.second];
+                if (n.second->isAccepted)
+                    os << "((" << "s" << dict[n.second] << "))";
+                os << '\n';
+            }
+    }
+    return os.str();
+}
+
 #ifdef _TEST_NFA
 int main(void)
 {
@@ -110,6 +146,7 @@ int main(void)
     std::cout << nfa1 + nfa2 << std::endl;
     std::cout << (nfa1 | nfa2) << std::endl;
     std::cout << *nfa1 << std::endl;
+    std::cout << nfa1.to_mermaid() << std::endl;
     return 0;
 }
 #endif

@@ -93,6 +93,9 @@ int main(void)
         std::cout << token.value << " ";
     std::cout << std::endl;
 
-    std::cout << Thompson(tokens) << std::endl;
+    NFA res = Thompson(tokens);
+    std::cout << res << std::endl;
+
+    std::cout << res.to_mermaid() << std::endl;
     return 0;
 }
