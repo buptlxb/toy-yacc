@@ -1,8 +1,6 @@
 #include <iostream>
 #include <vector>
 #include <stack>
-#include <cassert>
-#include "token.h"
 #include "finite_automaton.h"
 
 std::vector<Token> postfix2postfix(const std::vector<Token> &tokens)
@@ -36,46 +34,6 @@ std::vector<Token> postfix2postfix(const std::vector<Token> &tokens)
     return postfix;
 }
 
-#define NFA_UNARY(st, op) do { \
-    assert(st.size() >= 1); \
-    auto rhs = st.top(); \
-    st.pop(); \
-    st.emplace(op rhs); \
-} while(0)
-
-#define NFA_BINARY(st, op) do { \
-    assert(st.size() >= 2); \
-    auto rhs = st.top(); \
-    st.pop(); \
-    auto lhs = st.top(); \
-    st.pop(); \
-    st.emplace(lhs op rhs); \
-} while(0)
-
-NFA Thompson(const std::vector<Token> &re)
-{
-    std::stack<NFA> st;
-    for (auto &token : re) {
-        switch (token.type) {
-            case TokenType::OPERAND:
-                st.emplace(token.value);
-                break;
-            case TokenType::STAR:
-                NFA_UNARY(st, *);
-                break;
-            case TokenType::CONCATENATE:
-                NFA_BINARY(st, +);
-                break;
-            case TokenType::BAR:
-                NFA_BINARY(st, |);
-                break;
-            default:
-                abort();
-        }
-    }
-    return st.top();
-}
-
 int main(void)
 {
     std::vector<Token> postfix{
@@ -93,9 +51,12 @@ int main(void)
         std::cout << token.value << " ";
     std::cout << std::endl;
 
-    NFA res = Thompson(tokens);
+    EpsilonNFA res = Thompson(tokens);
     std::cout << res << std::endl;
 
-    std::cout << res.to_mermaid() << std::endl;
+    std::cout << res.toMermaid() << std::endl;
+
+    DFA dfa(res);
+    std::cout << dfa.toMermaid() << std::endl;
     return 0;
 }

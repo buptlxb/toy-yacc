@@ -1,21 +1,22 @@
 #include <iostream>
 #include <sstream>
 #include <set>
+#include <stack>
 #include "finite_automaton.h"
 #include "utility.h"
 
-NFA NFA::operator+ (const NFA &that) const {
-    NFA res(this);
+EpsilonNFA EpsilonNFA::operator+ (const EpsilonNFA &that) const {
+    EpsilonNFA res(*this);
     return res += that;
 }
 
-NFA NFA::operator| (const NFA &that) const {
-    NFA res(this);
+EpsilonNFA EpsilonNFA::operator| (const EpsilonNFA &that) const {
+    EpsilonNFA res(*this);
     return res |= that;
 }
 
-NFA & NFA::operator* () {
-    debug("star(NFA@0x%p)\n", this);
+EpsilonNFA & EpsilonNFA::operator* () {
+    debug("star(EpsilonNFA@0x%p)\n", this);
     FANode *ns0 = new FANode, *nsa = new FANode;
     nsa->isAccepted = true;
 
@@ -32,9 +33,9 @@ NFA & NFA::operator* () {
     return *this;
 }
 
-NFA & NFA::operator+= (const NFA &that) {
-    debug("NFA@0x%p + NFA@0x%p\n", this, &that);
-    assertm(this->sa->next.empty(), "The accepted state of NFA@0x%p should not have any succeeding", this);
+EpsilonNFA & EpsilonNFA::operator+= (const EpsilonNFA &that) {
+    debug("EpsilonNFA@0x%p + EpsilonNFA@0x%p\n", this, &that);
+    assertm(this->sa->next.empty(), "The accepted state of EpsilonNFA@0x%p should not have any succeeding", this);
     this->sa->isAccepted = false;
 
     std::map<FANode *, FANode *> dict;
@@ -51,8 +52,8 @@ NFA & NFA::operator+= (const NFA &that) {
     return *this;
 }
 
-NFA & NFA::operator|= (const NFA &that) {
-    debug("NFA@0x%p | NFA@0x%p\n", this, &that);
+EpsilonNFA & EpsilonNFA::operator|= (const EpsilonNFA &that) {
+    debug("EpsilonNFA@0x%p | EpsilonNFA@0x%p\n", this, &that);
     FANode *ns0 = new FANode, *nsa = new FANode;
     nsa->isAccepted = true;
 
@@ -89,10 +90,10 @@ std::ostream & operator<< (std::ostream &os, const FANode &fan) {
     return operator<< (os, &fan);
 }
 
-std::ostream & operator<< (std::ostream &os, const NFA &nfa) {
+std::ostream & operator<< (std::ostream &os, const FiniteAutomaton &fa) {
     std::queue<FANode *> q;
     std::set<FANode *> mem;
-    q.push(nfa.s0);
+    q.push(fa.s0);
     while (!q.empty()) {
             auto cur = q.front();
             q.pop();
@@ -109,14 +110,13 @@ std::ostream & operator<< (std::ostream &os, const NFA &nfa) {
     return os;
 }
 
-std::string NFA::to_mermaid() {
+std::string FiniteAutomaton::toMermaid() {
     std::ostringstream os;
     std::queue<FANode *> q;
     std::map<FANode *, unsigned> dict;
     unsigned index = 0;
     q.push(this->s0);
     dict.emplace(this->s0, index++);
-    dict.emplace(this->sa, index++);
     while (!q.empty()) {
             auto cur = q.front();
             q.pop();
@@ -127,7 +127,7 @@ std::string NFA::to_mermaid() {
                 }
                 os << "s" << dict[cur] << "--";
                 if (n.first == EPSILON)
-                    os << "eplisoin";
+                    os << "epsilon";
                 else
                     os << n.first;
                 os << "-->" << "s" << dict[n.second];
@@ -139,14 +139,106 @@ std::string NFA::to_mermaid() {
     return os.str();
 }
 
-#ifdef _TEST_NFA
+std::set<FANode *> EpsilonNFA::epsilonClosure(std::set<FANode *> nodes) const {
+    std::set<FANode *> closure(nodes);
+    std::queue<FANode *> q;
+    for (auto node : nodes)
+        q.push(node);
+    while (!q.empty()) {
+        FANode *cur = q.front();
+        q.pop();
+        auto range = cur->next.equal_range(EPSILON);
+        for (auto i = range.first, iend = range.second; i != iend; ++i) {
+            if (closure.insert(i->second).second)
+                q.push(i->second);
+        }
+    }
+    return closure;
+}
+
+#define EpsilonNFA_UNARY(st, op) do { \
+    assert(st.size() >= 1); \
+    auto rhs = st.top(); \
+    st.pop(); \
+    st.emplace(op rhs); \
+} while(0)
+
+#define EpsilonNFA_BINARY(st, op) do { \
+    assert(st.size() >= 2); \
+    auto rhs = st.top(); \
+    st.pop(); \
+    auto lhs = st.top(); \
+    st.pop(); \
+    st.emplace(lhs op rhs); \
+} while(0)
+
+EpsilonNFA Thompson(const std::vector<Token> &re)
+{
+    std::stack<EpsilonNFA> st;
+    for (auto &token : re) {
+        switch (token.type) {
+            case TokenType::OPERAND:
+                st.emplace(token.value);
+                break;
+            case TokenType::STAR:
+                EpsilonNFA_UNARY(st, *);
+                break;
+            case TokenType::CONCATENATE:
+                EpsilonNFA_BINARY(st, +);
+                break;
+            case TokenType::BAR:
+                EpsilonNFA_BINARY(st, |);
+                break;
+            default:
+                abort();
+        }
+    }
+    return st.top();
+}
+
+DFA::DFA(const EpsilonNFA &that) {
+    std::map<std::set<FANode *>, FANode *> dict;
+    std::queue<std::set<FANode *>> q;
+    q.push(that.epsilonClosure({that.s0}));
+    this->s0 = new FANode;
+    this->s0->isAccepted = q.front().find(that.sa) != q.front().end();
+    if (this->s0->isAccepted)
+        sas.push_back(this->s0);
+    dict.emplace(q.front(), this->s0);
+    while (!q.empty()) {
+        std::set<FANode *> cur = q.front();
+        q.pop();
+        std::map<char, std::set<FANode *>> transitions;
+        for (auto n : cur) {
+            for (auto p : n->next) {
+                if (p.first == EPSILON)
+                    continue;
+                transitions[p.first].insert(p.second);
+            }
+        }
+        for (auto &t : transitions) {
+            t.second = that.epsilonClosure(t.second);
+            if (dict.find(t.second) == dict.end()) {
+                FANode *tmp = new FANode;
+                tmp->isAccepted = t.second.find(that.sa) != t.second.end();
+                if (tmp->isAccepted)
+                    sas.push_back(tmp);
+                dict.emplace(t.second, tmp);
+                q.push(t.second);
+            }
+            dict[cur]->next.emplace(t.first, dict[t.second]);
+        }
+    }
+}
+
+#ifdef _TEST_EpsilonNFA
 int main(void)
 {
-    NFA nfa1('a'), nfa2('b');
+    EpsilonNFA nfa1('a'), nfa2('b');
     std::cout << nfa1 + nfa2 << std::endl;
     std::cout << (nfa1 | nfa2) << std::endl;
     std::cout << *nfa1 << std::endl;
-    std::cout << nfa1.to_mermaid() << std::endl;
+    std::cout << nfa1.toMermaid() << std::endl;
     return 0;
 }
 #endif

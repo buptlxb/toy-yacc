@@ -6,6 +6,8 @@
 #include <map>
 #include <queue>
 #include <iosfwd>
+#include "token.h"
+#include "utility.h"
 
 constexpr char EPSILON = '\xFF';
 
@@ -16,38 +18,29 @@ struct FANode {
     FANode () : isAccepted(false) {}
 };
 
-class NFA {
-    FANode *s0, *sa;
+class FiniteAutomaton {
+    friend std::ostream & operator<< (std::ostream &os, const FiniteAutomaton &nfa);
+protected:
+    FANode *s0;
 public:
-    NFA (char c=EPSILON) : s0(new FANode), sa(new FANode) {
-        s0->next.emplace(c, sa);
-        sa->prev.push_back(s0);
-        sa->isAccepted = true;
-    }
-    NFA (const NFA *that) {
-        std::map<FANode *, FANode *> dict;
-        s0 = new FANode;
-        dict[that->s0] = s0;
-        sa = new FANode;
-        dict[that->sa] = sa;
-        sa->isAccepted = true;
-        copy(that->s0, dict);
-    }
-    NFA (const NFA &that) {
+    FiniteAutomaton() : s0(new FANode) {}
+    FiniteAutomaton(const FiniteAutomaton &that) {
         std::map<FANode *, FANode *> dict;
         s0 = new FANode;
         dict[that.s0] = s0;
-        sa = new FANode;
-        dict[that.sa] = sa;
-        sa->isAccepted = true;
         copy(that.s0, dict);
     }
-    NFA (NFA &&that) {
-        this->s0 = that.s0;
-        this->sa = that.sa;
-        that.s0 = that.sa = nullptr;
+    FiniteAutomaton(FiniteAutomaton &that) {
+        std::map<FANode *, FANode *> dict;
+        s0 = new FANode;
+        dict[that.s0] = s0;
+        copy(that.s0, dict);
     }
-    ~NFA () {
+    FiniteAutomaton(FiniteAutomaton &&that) {
+        this->s0 = that.s0;
+        that.s0 = nullptr;
+    }
+    ~FiniteAutomaton() {
         if (!s0)
             return;
         std::set<FANode *> mem;
@@ -66,13 +59,8 @@ public:
             delete cur;
         }
     }
-    NFA operator+ (const NFA &) const;
-    NFA operator| (const NFA &) const;
-    NFA & operator* ();
-    NFA & operator+= (const NFA &);
-    NFA & operator|= (const NFA &);
-    std::string to_mermaid();
-private:
+    std::string toMermaid();
+protected:
     static void copy(FANode *s0, std::map<FANode *, FANode *> &dict) {
         std::queue<FANode *> q;
         q.push(s0);
@@ -82,6 +70,7 @@ private:
             for (auto &n : cur->next) {
                 if (dict.find(n.second) == dict.end()) {
                     dict.emplace(n.second, new FANode);
+                    dict[n.second]->isAccepted = n.second->isAccepted;
                     q.push(n.second);
                 }
                 dict[cur]->next.emplace(n.first, dict[n.second]);
@@ -89,8 +78,62 @@ private:
             }
         }
     }
-
-    friend std::ostream & operator<< (std::ostream &os, const NFA &nfa);
 };
+
+class DFA;
+
+class EpsilonNFA : public FiniteAutomaton {
+    FANode *sa;
+public:
+    EpsilonNFA (char c=EPSILON) : sa(new FANode) {
+        s0->next.emplace(c, sa);
+        sa->prev.push_back(s0);
+        sa->isAccepted = true;
+    }
+    EpsilonNFA (const EpsilonNFA &that) {
+        std::map<FANode *, FANode *> dict;
+        s0 = new FANode;
+        dict[that.s0] = s0;
+        sa = new FANode;
+        dict[that.sa] = sa;
+        sa->isAccepted = true;
+        copy(that.s0, dict);
+    }
+    EpsilonNFA (EpsilonNFA &&that) : FiniteAutomaton(std::move(that)) {
+        this->sa = that.sa;
+        that.sa = nullptr;
+    }
+    EpsilonNFA operator+ (const EpsilonNFA &) const;
+    EpsilonNFA operator| (const EpsilonNFA &) const;
+    EpsilonNFA & operator* ();
+    EpsilonNFA & operator+= (const EpsilonNFA &);
+    EpsilonNFA & operator|= (const EpsilonNFA &);
+    std::set<FANode *> epsilonClosure(std::set<FANode *> closure) const;
+
+    friend class DFA;
+};
+
+class DFA : public FiniteAutomaton {
+    std::vector<FANode *> sas;
+public:
+    DFA() {}
+    DFA(const DFA &that) {
+        std::map<FANode *, FANode *> dict;
+        s0 = new FANode;
+        dict[that.s0] = s0;
+        for (auto sa : that.sas) {
+            FANode *nsa = new FANode;
+            dict[sa] = nsa;
+            nsa->isAccepted = true;
+        }
+        copy(that.s0, dict);
+    }
+    DFA(DFA &&that) : FiniteAutomaton(std::move(that)), sas(that.sas) {
+        that.sas.clear();
+    }
+    DFA(const EpsilonNFA &);
+};
+
+extern EpsilonNFA Thompson(const std::vector<Token> &re);
 
 #endif
