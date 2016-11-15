@@ -5,6 +5,6 @@ yet another toy compiler compiler
 - [x] Infix expression to postfix expression
 - [x] Support RE operators: Concatenate, select, closure
 - [x] RE to NFA (Nondeterministic Finite Automaton)
-- [ ] NFA to DFA (Deterministic Finite Automaton)
+- [x] NFA to DFA (Deterministic Finite Automaton)
 - [ ] Minimizie the DFA
 - [ ] General DFA engine
