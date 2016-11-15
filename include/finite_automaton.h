@@ -23,14 +23,10 @@ class FiniteAutomaton {
 protected:
     FANode *s0;
 public:
-    FiniteAutomaton() : s0(new FANode) {}
+    FiniteAutomaton() : s0(nullptr) {}
     FiniteAutomaton(const FiniteAutomaton &that) {
-        std::map<FANode *, FANode *> dict;
-        s0 = new FANode;
-        dict[that.s0] = s0;
-        copy(that.s0, dict);
-    }
-    FiniteAutomaton(FiniteAutomaton &that) {
+        if (!that.s0)
+            return;
         std::map<FANode *, FANode *> dict;
         s0 = new FANode;
         dict[that.s0] = s0;
@@ -80,17 +76,18 @@ protected:
     }
 };
 
-class DFA;
-
 class EpsilonNFA : public FiniteAutomaton {
     FANode *sa;
 public:
     EpsilonNFA (char c=EPSILON) : sa(new FANode) {
+        s0 = new FANode;
         s0->next.emplace(c, sa);
         sa->prev.push_back(s0);
         sa->isAccepted = true;
     }
     EpsilonNFA (const EpsilonNFA &that) {
+        if (!that.s0)
+            return;
         std::map<FANode *, FANode *> dict;
         s0 = new FANode;
         dict[that.s0] = s0;
@@ -114,10 +111,12 @@ public:
 };
 
 class DFA : public FiniteAutomaton {
-    std::vector<FANode *> sas;
+    std::set<FANode *> sas;
 public:
     DFA() {}
     DFA(const DFA &that) {
+        if (!that.s0)
+            return;
         std::map<FANode *, FANode *> dict;
         s0 = new FANode;
         dict[that.s0] = s0;
@@ -125,13 +124,15 @@ public:
             FANode *nsa = new FANode;
             dict[sa] = nsa;
             nsa->isAccepted = true;
+            sas.insert(nsa);
         }
         copy(that.s0, dict);
     }
-    DFA(DFA &&that) : FiniteAutomaton(std::move(that)), sas(that.sas) {
-        that.sas.clear();
-    }
+    DFA(DFA &&that) : FiniteAutomaton(std::move(that)), sas(std::move(that.sas)) {}
     DFA(const EpsilonNFA &);
+    void minimize();
+private:
+    std::vector<std::set<FANode *>> split(std::set<FANode *>, const std::set<std::set<FANode *>> &);
 };
 
 extern EpsilonNFA Thompson(const std::vector<Token> &re);

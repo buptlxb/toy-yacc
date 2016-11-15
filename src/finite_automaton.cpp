@@ -203,7 +203,7 @@ DFA::DFA(const EpsilonNFA &that) {
     this->s0 = new FANode;
     this->s0->isAccepted = q.front().find(that.sa) != q.front().end();
     if (this->s0->isAccepted)
-        sas.push_back(this->s0);
+        sas.insert(this->s0);
     dict.emplace(q.front(), this->s0);
     while (!q.empty()) {
         std::set<FANode *> cur = q.front();
@@ -222,12 +222,104 @@ DFA::DFA(const EpsilonNFA &that) {
                 FANode *tmp = new FANode;
                 tmp->isAccepted = t.second.find(that.sa) != t.second.end();
                 if (tmp->isAccepted)
-                    sas.push_back(tmp);
+                    sas.insert(tmp);
                 dict.emplace(t.second, tmp);
                 q.push(t.second);
             }
             dict[cur]->next.emplace(t.first, dict[t.second]);
         }
+    }
+}
+
+std::vector<std::set<FANode *>> DFA::split(std::set<FANode *> subset, const std::set<std::set<FANode *>> &partition) {
+    std::vector<std::set<FANode *>> ret(1);
+    std::map<char, std::set<std::set<FANode *>>::iterator> dict;
+    auto i = subset.begin(), iend = subset.end();
+    for (auto p : (*i)->next) {
+        for (auto j = partition.cbegin(), jend = partition.cend(); j != jend; ++j) {
+            if (j->find(p.second) != j->end()) {
+                dict[p.first] = j;
+                break;
+            }
+        }
+    }
+    ret[0].insert(*i);
+    for (advance(i, 1); i != iend; ++i) {
+        int index = 0;
+        for (auto p : (*i)->next) {
+            if (dict.find(p.first) == dict.end() || dict[p.first]->find(p.second) == dict[p.first]->end()) {
+                index = 1;
+                break;
+            }
+        }
+        if (index == ret.size())
+            ret.resize(2);
+        ret[index].insert(*i);
+    }
+    return ret;
+}
+
+
+void DFA::minimize() {
+    std::set<FANode *> ss, visited;
+    std::queue<FANode *> q;
+    q.push(this->s0);
+    visited.insert(this->s0);
+    while (!q.empty()) {
+        FANode *cur = q.front();
+        q.pop();
+        if (!cur->isAccepted)
+            ss.insert(cur);
+        for (auto p : cur->next) {
+            if (visited.insert(p.second).second)
+                q.push(p.second);
+        }
+    }
+
+    std::set<std::set<FANode *>> target, partition;
+    target.insert(ss);
+    target.insert(this->sas);
+    while (target != partition) {
+        partition = target;
+        target.clear();
+        for (auto subset : partition) {
+            if (subset.size() < 2)
+                target.insert(subset);
+            else {
+                auto sets = split(subset, partition);
+                target.insert(sets.begin(), sets.end());
+            }
+        }
+    }
+
+    DFA old(std::move(*this));
+
+    typedef std::set<std::set<FANode *>>::iterator Iter;
+    typedef bool (*IterCmp) (Iter, Iter);
+    std::map<std::set<std::set<FANode *>>::iterator, FANode *, IterCmp> mapping([](Iter lhs, Iter rhs) -> bool { return *lhs < *rhs; });
+    std::map<FANode *, std::set<std::set<FANode *>>::iterator> represent;
+    for (auto i = target.begin(), iend = target.end(); i != iend; ++i)
+        for (auto j = i->begin(), jend = i->end(); j != jend; ++j)
+            represent.emplace(*j, i);
+    for (auto i = target.begin(), iend = target.end(); i != iend; ++i) {
+        if (mapping.find(i) == mapping.end())
+            mapping.emplace(i, new FANode);
+        if (i->find(old.s0) != i->end())
+            this->s0 = mapping[i];
+        for (auto j = i->begin(), jend = i->end(); j != jend; ++j) {
+            for (auto p : (*j)->next) {
+                auto repr = represent[p.second];
+                if (mapping.find(repr) == mapping.end())
+                    mapping.emplace(repr, new FANode);
+                if (mapping[i]->next.find(p.first) == mapping[i]->next.end())
+                    mapping[i]->next.emplace(p.first, mapping[repr]);
+            }
+        }
+    }
+    for (auto n : old.sas) {
+        auto t = mapping[represent[n]];
+        t->isAccepted = true;
+        this->sas.insert(t);
     }
 }
 

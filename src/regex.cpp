@@ -58,5 +58,9 @@ int main(void)
 
     DFA dfa(res);
     std::cout << dfa.toMermaid() << std::endl;
+
+    dfa.minimize();
+    std::cout << dfa.toMermaid() << std::endl;
+
     return 0;
 }
