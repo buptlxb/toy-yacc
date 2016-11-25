@@ -28,5 +28,9 @@
 *.out
 *.app
 
+# Others
+*.dot
+*.png
+
 build
 toy-yacc

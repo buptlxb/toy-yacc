@@ -1,0 +1,290 @@
+#include "regex_expression.h"
+#include "regex_exception.h"
+#include "utility.h"
+#include "regex_algorithm.h"
+#include <sstream>
+#include <cctype>
+#include <iomanip>
+
+bool Expression::equals(Expression *target) {
+    return EqualsVisitor().invoke(this, target);
+}
+
+CharRangeExpression::CharRangeExpression() : begin('\0'), end('\0') {
+}
+
+CharRangeExpression::CharRangeExpression(char b, char e) : begin(b), end(e) {
+}
+
+void CharRangeExpression::accept(Visitor &visitor) {
+    visitor.visit(this);
+}
+
+void BeginExpression::accept(Visitor &visitor) {
+    visitor.visit(this);
+}
+
+void EndExpression::accept(Visitor &visitor) {
+    visitor.visit(this);
+}
+
+void RepeatExpression::accept(Visitor &visitor) {
+    visitor.visit(this);
+}
+
+void SetExpression::accept(Visitor &visitor) {
+    visitor.visit(this);
+}
+
+void ConcatenationExpression::accept(Visitor &visitor) {
+    visitor.visit(this);
+}
+
+void SelectExpression::accept(Visitor &visitor) {
+    visitor.visit(this);
+}
+
+std::string repr(unsigned char c) {
+    switch (c) {
+        case '\0':
+            return "\\0";
+        case '\a':
+            return "\\a";
+        case '\b':
+            return "\\b";
+        case '\t':
+            return "\\t";
+        case '\n':
+            return "\\n";
+        case '\v':
+            return "\\v";
+        case '\f':
+            return "\\f";
+        case '\r':
+            return "\\r";
+        case '\\':
+            return "\\\\";
+        default:
+            {
+                if (32 < c && c < 127)
+                    return std::string(1, c);
+                std::ostringstream os;
+                os << "\\x" << std::setw(2) << std::setfill('0') << std::hex << (int)c;
+                return os.str();
+            }
+    }
+}
+
+std::string repr(const std::string &input) {
+    std::string ret;
+    for (auto c : input)
+        ret.append(repr(c));
+    return ret;
+}
+
+bool isChar(const char *&input, char c) {
+    if (*input == c) {
+        ++input;
+        return true;
+    }
+    return false;
+}
+
+bool isChars(const char *&input, std::string chars) {
+    if (chars.find(*input) == std::string::npos)
+        return false;
+    ++input;
+    return true;
+}
+
+/**
+ *  <char> ::= non-metacharacter | "\" metacharacter
+**/
+char parseChar(const char *&input) {
+    char c = *input;
+    if (isChar(input, '\\')) {  //  metacharacter
+        switch (*input) {
+            case 'r':
+                c = '\r';
+                break;
+            case 'n':
+                c = '\n';
+                break;
+            case 't':
+                c = '\t';
+                break;
+            case '-': case '[': case ']': case '\\': case '/': case '^': case '$': case '.': case '+': case '*': case '?': case '|':
+                c = *input;
+                break;
+            default:
+            {
+                std::ostringstream msg("Illegal character escapoing: ", std::ostringstream::ate);
+                msg << repr(*input) << "(Only \"rnt-[]\\/^$.+*?|\" are legal escaped characters)";
+                throw LexerException(msg.str());
+            }
+        }
+    }
+    ++input;
+    return c;
+}
+
+/**
+ *  <set-item> ::= <range> | <char>
+ *  <range> ::= <char> "-" <char>
+**/
+Expression::Ptr parseSetItem(const char *&input) {
+    char b, e;
+    b = e = parseChar(input);
+    if (isChar(input, '-')) {   // <range>
+        e = parseChar(input);
+    }
+    if (b > e) {
+        std::ostringstream msg("Range out of order in character class: ", std::ostringstream::ate);
+        msg << repr(b) << "-" << repr(e);
+        throw LexerException(msg.str());
+    }
+    return Expression::Ptr(new CharRangeExpression(b, e));
+}
+
+/**
+ *  <SetItems> ::= <SetItem> | <setItem> <SetItems>
+**/
+Expression::Ptr parseSetItems(const char *&input) {
+    if (!*input || *input == ']')
+        return nullptr;
+    Expression::Ptr setItem = parseSetItem(input), right = parseSetItems(input);
+    if (right) {
+        ConcatenationExpression *concatenation = new ConcatenationExpression;
+        concatenation->left = setItem;
+        concatenation->right = right;
+        return Expression::Ptr(concatenation);
+    } else
+        return setItem;
+}
+
+/**
+ *  <ElementaryRE> ::= <group> | <any> | <eos> | <bos> | <char> | <set>
+ *  <group> ::= "(" <RE> ")"
+ *  <any> ::= "."
+ *  <eos> ::= "$"
+ *  <bos> ::= "^"
+ *  <char> ::= non-metacharacter | "\" metacharacter
+ *  <set> ::= <positive-set> | <negative-set>
+ *  <positive-set> ::= "[" <set-items> "]"
+ *  <negative-set> ::= "[^" <set-items> "]"
+ *  <set-items> ::= <set-item> | <set-item> <set-items>
+ *  <set-item> ::= <range> | <char>
+ *  <range> ::= <char> "-" <char>
+**/
+Expression::Ptr parseElementaryRE(const char *&input) {
+    using std::shared_ptr;
+    if (!*input)
+        return nullptr;
+    else if (isChar(input, '^'))    // <bos>
+        return Expression::Ptr(new BeginExpression);
+    else if (isChar(input, '$'))    // <eos>
+        return EndExpression::Ptr(new EndExpression);
+    else if (isChar(input, '.'))    // <any>
+        return Expression::Ptr(new CharRangeExpression('\x00', '\xFF'));
+    else if (isChar(input, '[')) {  // <set>
+        shared_ptr<SetExpression> expr(new SetExpression);
+        expr->isComplementary = isChar(input, '^');
+        expr->expression = parseSetItems(input);
+        if (!isChar(input, ']'))
+            throw LexerException("Expect a ']' to close a <set>");
+        return expr;
+    } else if (isChar(input, '(')) { // <group>
+        Expression::Ptr expr = parseRE(input);
+        if (!isChar(input, ')'))
+            throw LexerException("Expect a ')' to close a <group>");
+        return expr;
+    } else if (isChars(input, "()+*?|")) { // metacharacter
+        --input;
+        return nullptr;
+    } else { // <char>
+        char c = parseChar(input);
+        return Expression::Ptr(new CharRangeExpression(c, c));
+    }
+}
+
+/**
+ * <basicRE> :== <star> | <plus> | <question> | <ElementaryRE>
+ * <star> ::= <ElementaryRE> "*" | <ElementaryRE> "*?"
+ * <plus> ::= <ElementaryRE> "+" | <ElementaryRE> "+?"
+ * <question> ::= <ElementaryRE> "?" | <ElementaryRE> "??"
+**/
+Expression::Ptr parseBasicRE(const char *&input) {
+    Expression::Ptr elementary = parseElementaryRE(input);
+    if (isChar(input, '*')) {   // <star>
+        RepeatExpression *repeat = new RepeatExpression;
+        repeat->min = 0, repeat->max = -1;
+        repeat->isGreedy = !isChar(input, '?');
+        repeat->expression = elementary;
+        return Expression::Ptr(repeat);
+    } else if (isChar(input, '+')) {    // <plus>
+        RepeatExpression *repeat = new RepeatExpression;
+        repeat->min = 1, repeat->max = -1;
+        repeat->isGreedy = !isChar(input, '?');
+        repeat->expression = elementary;
+        return Expression::Ptr(repeat);
+    } else if (isChar(input, '?')) {    // <question>
+        RepeatExpression *repeat = new RepeatExpression;
+        repeat->min = 0, repeat->max = 1;
+        repeat->isGreedy = !isChar(input, '?');
+        repeat->expression = elementary;
+        return Expression::Ptr(repeat);
+    } else {
+        return elementary;
+    }
+}
+
+/**
+ * <SimpleRE> ::= <SimpleRE-1> <BasicRE>
+ * <SimpleRE-1> ::= <BasicRE> <SimpleRE-1> | epsilon
+**/
+Expression::Ptr parseSimpleRE(const char *&input) {
+    if (!*input)
+        return nullptr;
+    Expression::Ptr basic = parseBasicRE(input);
+    if (!basic)
+        return nullptr;
+    Expression::Ptr right = parseSimpleRE(input);
+    if (right) {
+        ConcatenationExpression *concatenation = new ConcatenationExpression;
+        concatenation->left = basic;
+        concatenation->right = right;
+        return Expression::Ptr(concatenation);
+    } else
+        return basic;
+}
+
+/**
+ * <RE> ::= <RE-1> <SimpleRE>
+ * <RE-1> ::= "|" <SimpleRE> <RE-1> | epsilon
+**/
+Expression::Ptr parseRE(const char *&input) {
+    if (!*input)
+        return nullptr;
+    Expression::Ptr simple = parseSimpleRE(input);
+    if (isChar(input, '|')) {
+        Expression::Ptr right = parseRE(input);
+        if (right) {
+            SelectExpression *select = new SelectExpression;
+            select->left = simple;
+            select->right = right;
+            return Expression::Ptr(select);
+        }
+    }
+    return simple;
+}
+
+Expression::Ptr parseRegex(const std::string &str) {
+    const char *input = str.c_str(), *start = input;
+    try {
+        return parseRE(input);
+    } catch (LexerException e) {
+        std::ostringstream os(e.what(), std::ostringstream::ate);
+        os << " in position " << input-start << " of \"" << repr(str) << "\"";
+        throw LexerException(os.str());
+    }
+}

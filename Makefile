@@ -42,7 +42,7 @@ $(BUILD_DIR)/%.d: %.cpp
 	@if [ ! -d $(BUILD_DIR) ]; then \
 	mkdir $(BUILD_DIR); fi;
 	@if \
-	$(CXX) ${INCLUDE} -MM $< > $@;\
+	$(CXX) ${CXXFLAGS} ${INCLUDE} -MM $< > $@;\
 	then echo -e "[\e[32mCXX \e[m] \e[33m$<\e[m \e[36m->\e[m \e[33;1m$@\e[m"; \
 	else echo -e "[\e[31mFAIL\e[m] \e[33m$<\e[m \e[36m->\e[m \e[33;1m$@\e[m"; exit -1; fi;
 

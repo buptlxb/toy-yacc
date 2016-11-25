@@ -1,7 +1,7 @@
 # toy-yacc
 yet another toy compiler compiler
 
-- [ ] RE tokenizer
+- [x] RE tokenizer
 - [x] Infix expression to postfix expression
 - [x] Support RE operators: Concatenate, select, closure
 - [x] RE to NFA (Nondeterministic Finite Automaton)
