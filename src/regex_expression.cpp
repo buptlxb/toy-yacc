@@ -3,6 +3,7 @@
 #include "utility.h"
 #include "regex_algorithm.h"
 #include <sstream>
+#include <iostream>
 #include <cctype>
 #include <iomanip>
 
@@ -10,10 +11,28 @@ bool Expression::equals(Expression *target) {
     return EqualsVisitor().invoke(this, target);
 }
 
-CharRangeExpression::CharRangeExpression() : begin('\0'), end('\0') {
+void Expression::graphviz() {
+    std::cout << "digraph {\n";
+    GraphvizVisitor().invoke(this, nullptr);
+    std::cout << "}";
 }
 
-CharRangeExpression::CharRangeExpression(char b, char e) : begin(b), end(e) {
+void Expression::positize() {
+    SetPositizingVisitor().invoke(this, nullptr);
+}
+
+Automaton::Ptr Expression::generateEpsilonNfa() {
+    Automaton::Ptr automaton(new Automaton);
+    EpsilonNfa nfa = EpsilonNfaVisitor().invoke(this, automaton.get());
+    automaton->startState = nfa.start;
+    nfa.finish->isAccepted = true;
+    return automaton;
+}
+
+CharRangeExpression::CharRangeExpression() : range('\x00', '\x00') {
+}
+
+CharRangeExpression::CharRangeExpression(unsigned char b,unsigned char e) : range(b, e) {
 }
 
 void CharRangeExpression::accept(Visitor &visitor) {
@@ -26,6 +45,9 @@ void BeginExpression::accept(Visitor &visitor) {
 
 void EndExpression::accept(Visitor &visitor) {
     visitor.visit(this);
+}
+
+RepeatExpression::RepeatExpression(int32_t min, int32_t max, bool gdy) : times(min, max), isGreedy(gdy) {
 }
 
 void RepeatExpression::accept(Visitor &visitor) {
@@ -133,7 +155,7 @@ char parseChar(const char *&input) {
  *  <range> ::= <char> "-" <char>
 **/
 Expression::Ptr parseSetItem(const char *&input) {
-    char b, e;
+    unsigned char b, e;
     b = e = parseChar(input);
     if (isChar(input, '-')) {   // <range>
         e = parseChar(input);
@@ -154,10 +176,10 @@ Expression::Ptr parseSetItems(const char *&input) {
         return nullptr;
     Expression::Ptr setItem = parseSetItem(input), right = parseSetItems(input);
     if (right) {
-        ConcatenationExpression *concatenation = new ConcatenationExpression;
-        concatenation->left = setItem;
-        concatenation->right = right;
-        return Expression::Ptr(concatenation);
+        SelectExpression *select = new SelectExpression;
+        select->left = setItem;
+        select->right = right;
+        return Expression::Ptr(select);
     } else
         return setItem;
 }
@@ -216,21 +238,15 @@ Expression::Ptr parseElementaryRE(const char *&input) {
 Expression::Ptr parseBasicRE(const char *&input) {
     Expression::Ptr elementary = parseElementaryRE(input);
     if (isChar(input, '*')) {   // <star>
-        RepeatExpression *repeat = new RepeatExpression;
-        repeat->min = 0, repeat->max = -1;
-        repeat->isGreedy = !isChar(input, '?');
+        RepeatExpression *repeat = new RepeatExpression(0, -1, !isChar(input, '?'));
         repeat->expression = elementary;
         return Expression::Ptr(repeat);
     } else if (isChar(input, '+')) {    // <plus>
-        RepeatExpression *repeat = new RepeatExpression;
-        repeat->min = 1, repeat->max = -1;
-        repeat->isGreedy = !isChar(input, '?');
+        RepeatExpression *repeat = new RepeatExpression(1, -1, !isChar(input, '?'));
         repeat->expression = elementary;
         return Expression::Ptr(repeat);
     } else if (isChar(input, '?')) {    // <question>
-        RepeatExpression *repeat = new RepeatExpression;
-        repeat->min = 0, repeat->max = 1;
-        repeat->isGreedy = !isChar(input, '?');
+        RepeatExpression *repeat = new RepeatExpression(0, 1, !isChar(input, '?'));
         repeat->expression = elementary;
         return Expression::Ptr(repeat);
     } else {

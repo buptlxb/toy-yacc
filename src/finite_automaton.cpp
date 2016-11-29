@@ -5,6 +5,55 @@
 #include "finite_automaton.h"
 #include "utility.h"
 
+std::shared_ptr<State> Automaton::getState() {
+    auto s = std::make_shared<State>();
+    s->isAccepted = false;
+    states.push_back(s);
+    return s;
+}
+
+Transition::Ptr Automaton::getTransition(State::Ptr from, State::Ptr to) {
+    auto t = std::make_shared<Transition>();
+    t->source = from;
+    t->target = to;
+    from->outbounds.push_back(t);
+    to->inbounds.push_back(t);
+    transitions.push_back(t);
+    return t;
+}
+
+Transition::Ptr Automaton::getChars(State::Ptr from, State::Ptr to, Range<unsigned char> range) {
+    auto c = getTransition(from, to);
+    c->range = range;
+    c->type = Transition::Chars;
+    return c;
+}
+
+Transition::Ptr Automaton::getEpsilon(State::Ptr from, State::Ptr to) {
+    auto e = getTransition(from, to);
+    e->type = Transition::Epsilon;
+    return e;
+}
+
+
+Transition::Ptr Automaton::getBeginString(State::Ptr from, State::Ptr to) {
+    auto b = getTransition(from, to);
+    b->type = Transition::BeginString;
+    return b;
+}
+
+Transition::Ptr Automaton::getEndString(State::Ptr from, State::Ptr to) {
+    auto e = getTransition(from, to);
+    e->type = Transition::EndString;
+    return e;
+}
+
+Transition::Ptr Automaton::getNop(State::Ptr from, State::Ptr to) {
+    auto n = getTransition(from, to);
+    n->type = Transition::Nop;
+    return n;
+}
+
 EpsilonNFA EpsilonNFA::operator+ (const EpsilonNFA &that) const {
     EpsilonNFA res(*this);
     return res += that;

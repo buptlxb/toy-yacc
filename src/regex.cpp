@@ -2,6 +2,7 @@
 #include <vector>
 #include <stack>
 #include "finite_automaton.h"
+#include "regex_expression.h"
 
 std::vector<Token> postfix2postfix(const std::vector<Token> &tokens)
 {
@@ -36,31 +37,38 @@ std::vector<Token> postfix2postfix(const std::vector<Token> &tokens)
 
 int main(void)
 {
-    std::vector<Token> postfix{
-        {TokenType::OPERAND, 'a'},
-        {TokenType::CONCATENATE, '+'},
-        {TokenType::LEFT_PARENTTHESIS, '('},
-        {TokenType::OPERAND, 'b'},
-        {TokenType::BAR, '|'},
-        {TokenType::OPERAND, 'c'},
-        {TokenType::RIGHT_PARENTHESIS, ')'},
-        {TokenType::STAR, '*'}
-    };
-    std::vector<Token> tokens = postfix2postfix(postfix);
-    for (auto &token : tokens)
-        std::cout << token.value << " ";
-    std::cout << std::endl;
+    // std::vector<Token> postfix{
+    //     {TokenType::OPERAND, 'a'},
+    //     {TokenType::CONCATENATE, '+'},
+    //     {TokenType::LEFT_PARENTTHESIS, '('},
+    //     {TokenType::OPERAND, 'b'},
+    //     {TokenType::BAR, '|'},
+    //     {TokenType::OPERAND, 'c'},
+    //     {TokenType::RIGHT_PARENTHESIS, ')'},
+    //     {TokenType::STAR, '*'}
+    // };
+    // std::vector<Token> tokens = postfix2postfix(postfix);
+    // for (auto &token : tokens)
+    //     std::cout << token.value << " ";
+    // std::cout << std::endl;
 
-    EpsilonNFA res = Thompson(tokens);
-    std::cout << res << std::endl;
+    // EpsilonNFA res = Thompson(tokens);
+    // std::cout << res << std::endl;
 
-    std::cout << res.toMermaid() << std::endl;
+    // std::cout << res.toMermaid() << std::endl;
 
-    DFA dfa(res);
-    std::cout << dfa.toMermaid() << std::endl;
+    // DFA dfa(res);
+    // std::cout << dfa.toMermaid() << std::endl;
 
-    dfa.minimize();
-    std::cout << dfa.toMermaid() << std::endl;
+    // dfa.minimize();
+    // std::cout << dfa.toMermaid() << std::endl;
 
+    // const char *input = "(([0-9]+)(\\.[0-9]+)(e(\\+|-)?([0-9]+))? | ([0-9]+)e(\\+|-)?([0-9]+))([lL]|[fF])?";
+    const char *input = "(L)?'([^\\\\\\n]|(\\\\.))*?'";
+    // const char *input = "[^abcb-x]";
+    auto regex = parseRegex(input);
+    regex->positize();
+    regex->graphviz();
+    regex->generateEpsilonNfa();
     return 0;
 }

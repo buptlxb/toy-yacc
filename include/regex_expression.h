@@ -3,20 +3,24 @@
 
 #include <cstdint>
 #include <memory>
-//#include "regex_algorithm.h"
+#include "container.h"
+#include "finite_automaton.h"
+
 class Visitor;
 
 struct Expression {
     typedef std::shared_ptr<Expression> Ptr;
     bool equals(Expression *);
+    void graphviz();
+    void positize();
+    Automaton::Ptr generateEpsilonNfa();
     virtual void accept(Visitor &) = 0;
 };
 
 struct CharRangeExpression : public Expression {
-    char begin;
-    char end;
+    Range<unsigned char> range;
     CharRangeExpression();
-    CharRangeExpression(char b, char e);
+    CharRangeExpression(unsigned char b, unsigned char e);
     /*virtual*/ void accept(Visitor &);
 };
 
@@ -30,9 +34,9 @@ struct EndExpression : public Expression {
 
 struct RepeatExpression : public Expression {
     Expression::Ptr expression;
-    int32_t min;
-    int32_t max;
+    Range<int32_t> times;
     bool isGreedy;
+    RepeatExpression(int32_t min, int32_t max, bool isGreedy);
     /*virtual*/ void accept(Visitor &);
 };
 

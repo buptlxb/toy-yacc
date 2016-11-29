@@ -8,6 +8,59 @@
 #include <iosfwd>
 #include "token.h"
 #include "utility.h"
+#include "container.h"
+#include <list>
+#include <memory>
+
+class State;
+class Transition;
+
+struct Transition {
+    typedef std::shared_ptr<Transition> Ptr;
+    typedef std::list<Ptr> List;
+    enum Type
+    {
+        Chars,
+        Epsilon,
+        BeginString,
+        EndString,
+        Nop
+    };
+    std::shared_ptr<State> source;
+    std::shared_ptr<State> target;
+    Range<unsigned char> range;
+    Type type;
+};
+
+struct State {
+    typedef std::shared_ptr<State> Ptr;
+    typedef std::list<Ptr> List;
+    typename Transition::List inbounds;
+    typename Transition::List outbounds;
+    bool isAccepted;
+};
+
+class Automaton {
+public:
+    typename Transition::List transitions;
+    typename State::List states;
+    typename State::Ptr startState;
+    typedef std::shared_ptr<Automaton> Ptr;
+    Automaton() : startState(nullptr) {}
+    State::Ptr getState();
+    Transition::Ptr getTransition(State::Ptr from, State::Ptr to);
+    Transition::Ptr getChars(State::Ptr from, State::Ptr to, Range<unsigned char> range);
+    Transition::Ptr getEpsilon(State::Ptr from, State::Ptr to);
+    Transition::Ptr getBeginString(State::Ptr from, State::Ptr to);
+    Transition::Ptr getEndString(State::Ptr from, State::Ptr to);
+    Transition::Ptr getNop(State::Ptr from, State::Ptr to);
+};
+
+struct EpsilonNfa {
+    State::Ptr start;
+    State::Ptr finish;
+};
+
 
 constexpr char EPSILON = '\xFF';
 

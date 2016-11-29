@@ -2,6 +2,8 @@
 #define REGEX_ALGORITHM_H
 
 #include "regex_expression.h"
+#include "finite_automaton.h"
+#include "container.h"
 #include <string>
 
 // class Expression;
@@ -86,6 +88,7 @@ public:
         parameterValue = &parameter;
         expression->accept(*this);
     }
+
     virtual void visit(CharRangeExpression *expression, ParameterType parameter) = 0;
     virtual void visit(BeginExpression *expression, ParameterType parameter) = 0;
     virtual void visit(EndExpression *expression, ParameterType parameter) = 0;
@@ -93,6 +96,28 @@ public:
     virtual void visit(SetExpression *expression, ParameterType parameter) = 0;
     virtual void visit(ConcatenationExpression *expression, ParameterType parameter) = 0;
     virtual void visit(SelectExpression *expression, ParameterType parameter) = 0;
+
+    /*virtual*/ void visit(CharRangeExpression *expression) {
+        visit(expression, *parameterValue);
+    }
+    /*virtual*/ void visit(BeginExpression *expression) {
+        visit(expression, *parameterValue);
+    }
+    /*virtual*/ void visit(EndExpression *expression) {
+        visit(expression, *parameterValue);
+    }
+    /*virtual*/ void visit(RepeatExpression *expression) {
+        visit(expression, *parameterValue);
+    }
+    /*virtual*/ void visit(SetExpression *expression) {
+        visit(expression, *parameterValue);
+    }
+    /*virtual*/ void visit(ConcatenationExpression *expression) {
+        visit(expression, *parameterValue);
+    }
+    /*virtual*/ void visit(SelectExpression *expression) {
+        visit(expression, *parameterValue);
+    }
 };
 
 class EqualsVisitor : public RegexVisitor<bool, Expression *> {
@@ -118,7 +143,31 @@ public:
     /*virtual*/ std::string visit(ConcatenationExpression *expression, void *);
     /*virtual*/ std::string visit(SelectExpression *expression, void *);
 
-    static std::string repr(char c);
+    static std::string repr(unsigned char c);
+};
+
+class SetPositizingVisitor : public RegexVisitor<void, Range<unsigned char>::List *> {
+    Expression::Ptr merge(Expression::Ptr, unsigned char begin, unsigned char end);
+public:
+    /*virtual*/ void visit(CharRangeExpression *expression, Range<unsigned char>::List *);
+    /*virtual*/ void visit(BeginExpression *expression, Range<unsigned char>::List *);
+    /*virtual*/ void visit(EndExpression *expression, Range<unsigned char>::List *);
+    /*virtual*/ void visit(RepeatExpression *expression, Range<unsigned char>::List *);
+    /*virtual*/ void visit(SetExpression *expression, Range<unsigned char>::List *);
+    /*virtual*/ void visit(ConcatenationExpression *expression, Range<unsigned char>::List *);
+    /*virtual*/ void visit(SelectExpression *expression, Range<unsigned char>::List *);
+};
+
+class EpsilonNfaVisitor : public RegexVisitor<EpsilonNfa, Automaton *> {
+public:
+    EpsilonNfa connect(EpsilonNfa, EpsilonNfa, Automaton *);
+    /*virtual*/ EpsilonNfa visit(CharRangeExpression *expression, Automaton *);
+    /*virtual*/ EpsilonNfa visit(BeginExpression *expression, Automaton *);
+    /*virtual*/ EpsilonNfa visit(EndExpression *expression, Automaton *);
+    /*virtual*/ EpsilonNfa visit(RepeatExpression *expression, Automaton *);
+    /*virtual*/ EpsilonNfa visit(SetExpression *expression, Automaton *);
+    /*virtual*/ EpsilonNfa visit(ConcatenationExpression *expression, Automaton *);
+    /*virtual*/ EpsilonNfa visit(SelectExpression *expression, Automaton *);
 };
 
 #endif

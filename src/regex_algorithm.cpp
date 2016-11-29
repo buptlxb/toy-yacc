@@ -1,4 +1,5 @@
 #include "regex_algorithm.h"
+#include "utility.h"
 #include <sstream>
 #include <iostream>
 
@@ -7,7 +8,7 @@ bool EqualsVisitor::visit(CharRangeExpression *expression, Expression *target) {
     CharRangeExpression *that = dynamic_cast<CharRangeExpression *>(target);
     if (!that)
         return false;
-    return expression->begin == that->begin && expression->end == that->end;
+    return expression->range == that->range;
 }
 
 bool EqualsVisitor::visit(BeginExpression *expression, Expression *target) {
@@ -22,7 +23,7 @@ bool EqualsVisitor::visit(RepeatExpression *expression, Expression *target) {
     RepeatExpression *that = dynamic_cast<RepeatExpression *>(target);
     if (!that)
         return false;
-    if (expression->min != that->min || expression->max != that->max || expression->isGreedy != that->isGreedy)
+    if (expression->times != expression->times || expression->isGreedy != that->isGreedy)
         return false;
     return invoke(expression->expression, that->expression.get());
 }
@@ -33,6 +34,10 @@ bool EqualsVisitor::visit(SetExpression *expression, Expression *target) {
         return false;
     if (expression->isComplementary != that->isComplementary)
         return false;
+    if (!expression->expression ^ !that->expression)
+        return false;
+    if (!expression->expression && !that->expression)
+        return true;
     return invoke(expression->expression, that->expression.get());
 }
 
@@ -54,7 +59,7 @@ std::string GraphvizVisitor::visit(CharRangeExpression *expression, void *) {
     std::ostringstream os;
     os << "CharRange_" << id++;
     std::string name = os.str();
-    std::cout << name << " [ label=\"" << repr(expression->begin) << "-" << repr(expression->end) << "\" ]" << "\n";
+    std::cout << name << " [ label=\"" << repr(expression->range.begin) << "-" << repr(expression->range.end) << "\" ]" << "\n";
     return name;
 }
 
@@ -83,11 +88,11 @@ std::string GraphvizVisitor::visit(RepeatExpression *expression, void *) {
     std::cout << name << " [ label=\"";
     if (expression->isGreedy)
         std::cout << "Greedy";
-    std::cout << "{" << expression->min << "-";
-    if (expression->max < 0)
+    std::cout << "{" << expression->times.begin << "-";
+    if (expression->times.end < 0)
         std::cout << "INF";
     else
-        std::cout << expression->max;
+        std::cout << expression->times.end;
     std::cout << "}\" ]" << "\n";
     return name;
 }
@@ -95,8 +100,11 @@ std::string GraphvizVisitor::visit(RepeatExpression *expression, void *) {
 std::string GraphvizVisitor::visit(SetExpression *expression, void *) {
     std::ostringstream os;
     os << "Set_" << id++;
-    std::string name = os.str(), target = invoke(expression->expression, std::cout);
-    std::cout << name << "->" << target << '\n';
+    std::string name = os.str();
+    if (expression->expression) {
+        std::string target = invoke(expression->expression, std::cout);
+        std::cout << name << "->" << target << '\n';
+    }
 
     std::cout << name << " [ label=\"[";
     if (expression->isComplementary)
@@ -125,11 +133,186 @@ std::string GraphvizVisitor::visit(SelectExpression *expression, void *) {
     return name;
 }
 
-std::string GraphvizVisitor::repr(char c) {
+std::string GraphvizVisitor::repr(unsigned char c) {
     std::string tmp = ::repr(c);
     if (tmp.size() == 2 && tmp != "\\\\")
         tmp = ::repr(tmp);
     if (tmp.back() == '\\')
         tmp.push_back(' ');
     return tmp;
+}
+
+Expression::Ptr SetPositizingVisitor::merge(Expression::Ptr posit, unsigned char begin, unsigned char end) {
+    CharRangeExpression *range = new CharRangeExpression(begin, end);
+    if (posit) {
+        ConcatenationExpression *concatenation = new ConcatenationExpression;
+        concatenation->left = Expression::Ptr(range);
+        concatenation->right = posit;
+        posit = Expression::Ptr(concatenation);
+    } else
+        posit.reset(range);
+    return posit;
+}
+
+void SetPositizingVisitor::visit(CharRangeExpression *expression, Range<unsigned char>::List *ranges) {
+    if (!ranges)
+        return;
+    auto range = expression->range;
+    for (auto i = ranges->begin(), iend = ranges->end(); i != iend; ++i) {
+        if (range.end < i->begin) {
+            ranges->emplace(i, range);
+            return;
+        } else if (i->end < range.begin)
+            ;
+        else if (i->begin < range.begin) {
+            auto end = i->end;
+            i->end = range.begin - 1;
+            i = ranges->emplace(i, range.begin, end);
+        } else if (range.begin < i->begin) {
+            i = ranges->emplace(i, range.begin, i->begin-1);
+            range.begin = i->begin;
+        } else if (i->end < range.end) {
+            range.begin = i->end + 1;
+        } else
+            return;
+    }
+    ranges->push_back(range);
+}
+void SetPositizingVisitor::visit(BeginExpression *expression, Range<unsigned char>::List *) { }
+void SetPositizingVisitor::visit(EndExpression *expression, Range<unsigned char>::List *) { }
+void SetPositizingVisitor::visit(RepeatExpression *expression, Range<unsigned char>::List *) {
+    invoke(expression->expression, nullptr);
+}
+void SetPositizingVisitor::visit(SetExpression *expression, Range<unsigned char>::List *) {
+    if (!expression->isComplementary || !expression->expression)
+        return;
+    Range<unsigned char>::List ranges;
+    invoke(expression->expression, &ranges);
+    unsigned char begin = '\x00';
+    Expression::Ptr posit;
+    for (auto i = ranges.begin(), iend = ranges.end(); i != iend; ++i) {
+        if (begin < i->begin) {
+            posit = merge(posit, begin, i->begin-1);
+        }
+        begin = i->end+1;
+        if (i->end == '\xff')
+            break;
+    }
+    if (begin != '\x00')
+        posit = merge(posit, begin, '\xff');
+
+    expression->isComplementary = false;
+    expression->expression = posit;
+}
+void SetPositizingVisitor::visit(ConcatenationExpression *expression, Range<unsigned char>::List *) {
+    invoke(expression->left, nullptr);
+    invoke(expression->right, nullptr);
+}
+void SetPositizingVisitor::visit(SelectExpression *expression, Range<unsigned char>::List *ranges) {
+    invoke(expression->left, ranges);
+    invoke(expression->right, ranges);
+}
+
+EpsilonNfa EpsilonNfaVisitor::connect(EpsilonNfa a, EpsilonNfa b, Automaton *automaton) {
+    if (a.start) {
+        automaton->getEpsilon(a.finish, b.start);
+        a.finish = b.finish;
+        return a;
+    } else
+        return b;
+}
+
+EpsilonNfa EpsilonNfaVisitor::visit(CharRangeExpression *expression, Automaton *automaton) {
+    EpsilonNfa nfa;
+    nfa.start = automaton->getState();
+    nfa.finish = automaton->getState();
+    automaton->getChars(nfa.start, nfa.finish, expression->range);
+    return nfa;
+}
+
+EpsilonNfa EpsilonNfaVisitor::visit(BeginExpression *expression, Automaton *automaton) {
+    EpsilonNfa nfa;
+    nfa.start = automaton->getState();
+    nfa.finish = automaton->getState();
+    automaton->getBeginString(nfa.start, nfa.finish);
+    return nfa;
+}
+
+EpsilonNfa EpsilonNfaVisitor::visit(EndExpression *expression, Automaton *automaton) {
+    EpsilonNfa nfa;
+    nfa.start = automaton->getState();
+    nfa.finish = automaton->getState();
+    automaton->getBeginString(nfa.start, nfa.finish);
+    return nfa;
+}
+
+EpsilonNfa EpsilonNfaVisitor::visit(RepeatExpression *expression, Automaton *automaton) {
+    EpsilonNfa nfa;
+    for (int i = 0; i < expression->times.begin; ++i) {
+        EpsilonNfa replica = invoke(expression->expression, automaton);
+        nfa = connect(nfa, replica, automaton);
+    }
+    if (expression->times.end == -1) {
+        EpsilonNfa replica = invoke(expression->expression, automaton);
+        if (!nfa.start) {
+            nfa.start = nfa.finish = automaton->getState();
+        }
+        State::Ptr begin = nfa.finish;
+        State::Ptr end = automaton->getState();
+        if (expression->isGreedy) {
+            automaton->getEpsilon(begin, replica.start);
+            automaton->getEpsilon(replica.finish, begin);
+            automaton->getNop(begin, end);
+        } else {
+            automaton->getNop(begin, end);
+            automaton->getEpsilon(begin, replica.start);
+            automaton->getEpsilon(replica.finish, begin);
+        }
+        nfa.finish = end;
+    } else if (expression->times.end > expression->times.begin) {
+        for (int i = expression->times.begin, iend = expression->times.end; i != iend; ++i) {
+            EpsilonNfa replica = invoke(expression->expression, automaton);
+            State::Ptr begin = automaton->getState();
+            State::Ptr end = automaton->getState();
+            if (expression->isGreedy) {
+                automaton->getEpsilon(begin, replica.start);
+                automaton->getEpsilon(replica.finish, begin);
+                automaton->getNop(begin, end);
+            } else {
+                automaton->getNop(begin, end);
+                automaton->getEpsilon(begin, replica.start);
+                automaton->getEpsilon(replica.finish, begin);
+            }
+            replica.start = begin;
+            replica.finish = end;
+            nfa = connect(nfa, replica, automaton);
+        }
+    }
+    return nfa;
+}
+
+EpsilonNfa EpsilonNfaVisitor::visit(SetExpression *expression, Automaton *automaton) {
+    assertm(!expression->isComplementary, "Unable to apply EpsilonNfaVisitor to negative SetExpression.\nPlease call positize() first.");
+    if (expression->expression)
+        invoke(expression->expression, automaton);
+    EpsilonNfa nfa;
+    nfa.start = nfa.finish = automaton->getState();
+    return nfa;
+}
+
+EpsilonNfa EpsilonNfaVisitor::visit(ConcatenationExpression *expression, Automaton *automaton) {
+    return connect(invoke(expression->left, automaton), invoke(expression->right, automaton), automaton);
+}
+
+EpsilonNfa EpsilonNfaVisitor::visit(SelectExpression *expression, Automaton *automaton) {
+    EpsilonNfa nfa;
+    nfa.start = automaton->getState();
+    nfa.finish = automaton->getState();
+    auto a = invoke(expression->left, automaton);
+    auto b = invoke(expression->right, automaton);
+    automaton->getEpsilon(nfa.start, a.start);
+    automaton->getEpsilon(nfa.start, b.start);
+    automaton->getEpsilon(a.finish, nfa.finish);
+    automaton->getEpsilon(b.finish, nfa.finish);
+    return nfa;
 }
