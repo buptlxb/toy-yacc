@@ -6,14 +6,15 @@
 #include <map>
 #include <queue>
 #include <iosfwd>
+#include <unordered_map>
 #include "token.h"
 #include "utility.h"
 #include "container.h"
 #include <list>
 #include <memory>
 
-class State;
-class Transition;
+struct State;
+struct Transition;
 
 struct Transition {
     typedef std::shared_ptr<Transition> Ptr;
@@ -35,8 +36,9 @@ struct Transition {
 struct State {
     typedef std::shared_ptr<State> Ptr;
     typedef std::list<Ptr> List;
-    typename Transition::List inbounds;
-    typename Transition::List outbounds;
+    typedef std::set<Ptr> Set;
+    Transition::List inbounds;
+    Transition::List outbounds;
     bool isAccepted;
 };
 
@@ -54,7 +56,17 @@ public:
     Transition::Ptr getBeginString(State::Ptr from, State::Ptr to);
     Transition::Ptr getEndString(State::Ptr from, State::Ptr to);
     Transition::Ptr getNop(State::Ptr from, State::Ptr to);
+    std::ostream & toMermaid(std::ostream &);
+    void reverse();
+    void reachableTrim();
 };
+
+extern bool poorEpsilonChecker(Transition::Ptr);
+extern bool richEpsilonChecker(Transition::Ptr);
+extern void epsilonClosure(State::Ptr dfaState, State::Ptr nfaState, bool (*epsilonChecker)(Transition::Ptr), State::Set &epsilonStates, Transition::List &transitions);
+extern bool epsilonClosure(typename State::Ptr nfaState, bool (*epsilonChecker)(Transition::Ptr), State::Set &epsilonStates, std::unordered_map<Transition::Ptr, State::Set> &transitions);
+extern Automaton::Ptr subset(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr));
+extern Automaton::Ptr epsilonNfaToDfa(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr));
 
 struct EpsilonNfa {
     State::Ptr start;

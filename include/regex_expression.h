@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <iosfwd>
 #include "container.h"
 #include "finite_automaton.h"
 
@@ -11,7 +12,7 @@ class Visitor;
 struct Expression {
     typedef std::shared_ptr<Expression> Ptr;
     bool equals(Expression *);
-    void graphviz();
+    void graphviz(std::ostream &os);
     void positize();
     Automaton::Ptr generateEpsilonNfa();
     virtual void accept(Visitor &) = 0;

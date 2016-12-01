@@ -2,6 +2,7 @@
 #define CONTAINER_H
 
 #include <list>
+#include <string>
 
 template <typename T>
 struct Range {
@@ -24,4 +25,7 @@ struct Range {
     }
 };
 
+std::string repr(unsigned char c);
+
+std::string repr(const std::string &input);
 #endif

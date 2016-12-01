@@ -55,11 +55,13 @@ bool EqualsVisitor::visit(SelectExpression *expression, Expression *target) {
     return invoke(expression->left, that->left.get()) && invoke(expression->right, that->right.get());
 }
 
+GraphvizVisitor::GraphvizVisitor(std::ostream &os, unsigned long x) : dot(os), id(x) { }
+
 std::string GraphvizVisitor::visit(CharRangeExpression *expression, void *) {
     std::ostringstream os;
     os << "CharRange_" << id++;
     std::string name = os.str();
-    std::cout << name << " [ label=\"" << repr(expression->range.begin) << "-" << repr(expression->range.end) << "\" ]" << "\n";
+    dot << name << " [ label=\"" << repr(expression->range.begin) << "-" << repr(expression->range.end) << "\" ]" << "\n";
     return name;
 }
 
@@ -67,7 +69,7 @@ std::string GraphvizVisitor::visit(BeginExpression *expression, void *) {
     std::ostringstream os;
     os << "Begin_" << id++;
     std::string name = os.str();
-    std::cout << name << " [ label=\"BEGIN\" ]" << "\n";
+    dot << name << " [ label=\"BEGIN\" ]" << "\n";
     return name;
 }
 
@@ -75,25 +77,25 @@ std::string GraphvizVisitor::visit(EndExpression *expression, void *) {
     std::ostringstream os;
     os << "End_" << id++;
     std::string name = os.str();
-    std::cout << name << " [ label=\"END\" ]" << "\n";
+    dot << name << " [ label=\"END\" ]" << "\n";
     return name;
 }
 
 std::string GraphvizVisitor::visit(RepeatExpression *expression, void *) {
     std::ostringstream os;
     os << "Repeat_" << id++;
-    std::string name = os.str(), target = invoke(expression->expression, std::cout);
-    std::cout << name << "->" << target << '\n';
+    std::string name = os.str(), target = invoke(expression->expression, nullptr);
+    dot << name << "->" << target << '\n';
 
-    std::cout << name << " [ label=\"";
+    dot << name << " [ label=\"";
     if (expression->isGreedy)
-        std::cout << "Greedy";
-    std::cout << "{" << expression->times.begin << "-";
+        dot << "Greedy";
+    dot << "{" << expression->times.begin << "-";
     if (expression->times.end < 0)
-        std::cout << "INF";
+        dot << "INF";
     else
-        std::cout << expression->times.end;
-    std::cout << "}\" ]" << "\n";
+        dot << expression->times.end;
+    dot << "}\" ]" << "\n";
     return name;
 }
 
@@ -102,14 +104,14 @@ std::string GraphvizVisitor::visit(SetExpression *expression, void *) {
     os << "Set_" << id++;
     std::string name = os.str();
     if (expression->expression) {
-        std::string target = invoke(expression->expression, std::cout);
-        std::cout << name << "->" << target << '\n';
+        std::string target = invoke(expression->expression, nullptr);
+        dot << name << "->" << target << '\n';
     }
 
-    std::cout << name << " [ label=\"[";
+    dot << name << " [ label=\"[";
     if (expression->isComplementary)
-        std::cout << '^';
-    std::cout << "]\" ]" << "\n";
+        dot << '^';
+    dot << "]\" ]" << "\n";
     return name;
 }
 
@@ -117,9 +119,9 @@ std::string GraphvizVisitor::visit(ConcatenationExpression *expression, void *) 
     std::ostringstream os;
     os << "Concatenation_" << id++;
     std::string name = os.str();
-    std::string ltarget = invoke(expression->left, std::cout), rtarget = invoke(expression->right, std::cout);
-    std::cout << name << "->{" << ltarget << " " << rtarget << "}" << '\n';
-    std::cout << name << " [ label=\"Con\" ]" << "\n";
+    std::string ltarget = invoke(expression->left, nullptr), rtarget = invoke(expression->right, nullptr);
+    dot << name << "->{" << ltarget << " " << rtarget << "}" << '\n';
+    dot << name << " [ label=\"Con\" ]" << "\n";
     return name;
 }
 
@@ -127,9 +129,9 @@ std::string GraphvizVisitor::visit(SelectExpression *expression, void *) {
     std::ostringstream os;
     os << "Select_" << id++;
     std::string name = os.str();
-    std::string ltarget = invoke(expression->left, std::cout), rtarget = invoke(expression->right, std::cout);
-    std::cout << name << "->{" << ltarget << " " << rtarget << "}" << '\n';
-    std::cout << name << " [ label=\"|\" ]" << "\n";
+    std::string ltarget = invoke(expression->left, dot), rtarget = invoke(expression->right, dot);
+    dot << name << "->{" << ltarget << " " << rtarget << "}" << '\n';
+    dot << name << " [ label=\"|\" ]" << "\n";
     return name;
 }
 
@@ -145,10 +147,10 @@ std::string GraphvizVisitor::repr(unsigned char c) {
 Expression::Ptr SetPositizingVisitor::merge(Expression::Ptr posit, unsigned char begin, unsigned char end) {
     CharRangeExpression *range = new CharRangeExpression(begin, end);
     if (posit) {
-        ConcatenationExpression *concatenation = new ConcatenationExpression;
-        concatenation->left = Expression::Ptr(range);
-        concatenation->right = posit;
-        posit = Expression::Ptr(concatenation);
+        SelectExpression *select = new SelectExpression;
+        select->left = Expression::Ptr(range);
+        select->right = posit;
+        posit = Expression::Ptr(select);
     } else
         posit.reset(range);
     return posit;
@@ -276,12 +278,12 @@ EpsilonNfa EpsilonNfaVisitor::visit(RepeatExpression *expression, Automaton *aut
             State::Ptr end = automaton->getState();
             if (expression->isGreedy) {
                 automaton->getEpsilon(begin, replica.start);
-                automaton->getEpsilon(replica.finish, begin);
+                automaton->getEpsilon(replica.finish, end);
                 automaton->getNop(begin, end);
             } else {
                 automaton->getNop(begin, end);
                 automaton->getEpsilon(begin, replica.start);
-                automaton->getEpsilon(replica.finish, begin);
+                automaton->getEpsilon(replica.finish, end);
             }
             replica.start = begin;
             replica.finish = end;
@@ -294,7 +296,7 @@ EpsilonNfa EpsilonNfaVisitor::visit(RepeatExpression *expression, Automaton *aut
 EpsilonNfa EpsilonNfaVisitor::visit(SetExpression *expression, Automaton *automaton) {
     assertm(!expression->isComplementary, "Unable to apply EpsilonNfaVisitor to negative SetExpression.\nPlease call positize() first.");
     if (expression->expression)
-        invoke(expression->expression, automaton);
+        return invoke(expression->expression, automaton);
     EpsilonNfa nfa;
     nfa.start = nfa.finish = automaton->getState();
     return nfa;

@@ -133,8 +133,10 @@ public:
 
 class GraphvizVisitor : public RegexVisitor<std::string, void *> {
     unsigned long id;
+    std::ostream &dot;
+    GraphvizVisitor(const GraphvizVisitor &);
 public:
-    GraphvizVisitor() : id(0) {}
+    GraphvizVisitor(std::ostream &os, unsigned long x=0);
     /*virtual*/ std::string visit(CharRangeExpression *expression, void *);
     /*virtual*/ std::string visit(BeginExpression *expression, void *);
     /*virtual*/ std::string visit(EndExpression *expression, void *);
