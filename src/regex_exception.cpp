@@ -1,5 +1,4 @@
 #include "regex_exception.h"
-#include <cstdio>
 
 LexerException::LexerException(const std::string m) : message(m) {}
 

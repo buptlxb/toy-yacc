@@ -1,7 +1,6 @@
+#include <sstream>
 #include "regex_algorithm.h"
 #include "utility.h"
-#include <sstream>
-#include <iostream>
 
 
 bool EqualsVisitor::visit(CharRangeExpression *expression, Expression *target) {

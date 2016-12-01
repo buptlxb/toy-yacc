@@ -3,7 +3,6 @@
 
 #include <exception>
 #include <string>
-#include <memory>
 
 class LexerException : public std::exception {
     std::string message;

@@ -2,18 +2,7 @@
 #define REGEX_ALGORITHM_H
 
 #include "regex_expression.h"
-#include "finite_automaton.h"
-#include "container.h"
-#include <string>
-
-// class Expression;
-// class CharRangeExpression;
-// class BeginExpression;
-// class EndExpression;
-// class RepeatExpression;
-// class SetExpression;
-// class ConcatenationExpression;
-// class SelectExpression;
+#include "automaton.h"
 
 struct Visitor {
     virtual void visit(CharRangeExpression *expression) = 0;

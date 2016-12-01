@@ -5,7 +5,7 @@
 #include <memory>
 #include <iosfwd>
 #include "container.h"
-#include "finite_automaton.h"
+#include "automaton.h"
 
 class Visitor;
 
