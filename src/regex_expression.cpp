@@ -14,8 +14,8 @@ void Expression::graphviz(std::ostream &os) {
     os << "}" << std::endl;
 }
 
-void Expression::positize() {
-    SetPositizingVisitor().invoke(this, nullptr);
+void Expression::setNormalize() {
+    SetNormalizationVisitor().invoke(this, nullptr);
 }
 
 Automaton::Ptr Expression::generateEpsilonNfa() {

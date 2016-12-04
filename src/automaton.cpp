@@ -4,6 +4,24 @@
 #include "automaton.h"
 #include "utility.h"
 
+struct Transition::Hash : std::hash<Ptr> {
+    std::size_t operator() (Transition::Ptr ptr) const {
+        switch (ptr->type) {
+            case Transition::Chars:
+                return std::hash<uint32_t>()(((size_t)ptr->range.begin<<8) | ptr->range.end);
+            default:
+                return std::hash<int>()(ptr->type);
+        }
+    }
+};
+struct Transition::EqualTo : std::equal_to<Ptr> {
+    bool operator() (Transition::Ptr lhs, Transition::Ptr rhs) const {
+        if (lhs->type != rhs->type)
+            return false;
+        return lhs->type != Transition::Chars || lhs->range == rhs->range;
+    }
+};
+
 std::shared_ptr<State> Automaton::getState() {
     auto s = std::make_shared<State>();
     s->isAccepted = false;
@@ -67,13 +85,13 @@ std::ostream & Automaton::toMermaid(std::ostream &os) {
                     dict.emplace(trans->target, index++);
                     q.push(trans->target);
                 }
-                os << "s" << dict[cur] << "--";
+                os << "s" << dict[cur] << "--\"";
                 switch (trans->type) {
                     case Transition::Chars:
                         if (trans->range.begin == trans->range.end)
                             os << repr(trans->range.begin);
                         else
-                            os << "\"[" << repr(trans->range.begin) << "-" << repr(trans->range.end) << "]\"";
+                            os << "[" << repr(trans->range.begin) << "-" << repr(trans->range.end) << "]";
                         break;
                     case Transition::Epsilon:
                         os << "epsilon";
@@ -90,7 +108,7 @@ std::ostream & Automaton::toMermaid(std::ostream &os) {
                     default:
                         assertm(0, "Unkonwn Transition Type: %d", trans->type);
                 }
-                os << "-->" << "s" << dict[trans->target];
+                os << "\"-->" << "s" << dict[trans->target];
                 if (trans->target->isAccepted)
                     os << "((" << "s" << dict[trans->target] << "))";
                 os << '\n';
@@ -163,21 +181,7 @@ bool richEpsilonChecker(Transition::Ptr transition) {
     }
 }
 
-void epsilonClosure(typename State::Ptr dfaState, typename State::Ptr nfaState, bool (*epsilonChecker)(Transition::Ptr), State::Set &epsilonStates, Transition::List &transitions) {
-    if (epsilonStates.find(nfaState) == epsilonStates.end()) {
-        epsilonStates.emplace(nfaState);
-        for (auto trans : nfaState->outbounds) {
-            if (epsilonChecker(trans)) {
-                if (trans->target->isAccepted)
-                    dfaState->isAccepted = true;
-                epsilonClosure(dfaState, trans->target, epsilonChecker, epsilonStates, transitions);
-            } else
-                transitions.emplace_back(trans);
-        }
-    }
-}
-
-bool epsilonClosure(typename State::Ptr nfaState, bool (*epsilonChecker)(Transition::Ptr), State::Set &epsilonStates, std::unordered_map<Transition::Ptr, State::Set> &transitions) {
+bool epsilonClosure(typename State::Ptr nfaState, bool (*epsilonChecker)(Transition::Ptr), State::Set &epsilonStates, Transition::Map<State::Set> &transitions) {
     bool isAccepted = nfaState->isAccepted;
     if (epsilonStates.find(nfaState) == epsilonStates.end()) {
         epsilonStates.emplace(nfaState);
@@ -198,9 +202,9 @@ Automaton::Ptr subset(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr
     Automaton::Ptr dfa(new Automaton);
     std::map<State::Set, State::Ptr> dict;
     std::queue<State::Set> stateSetsQ;
-    std::queue<std::unordered_map<Transition::Ptr, State::Set>> transitionsQ;
+    std::queue<Transition::Map<State::Set>> transitionsQ;
     State::Set epsilonStates;
-    std::unordered_map<Transition::Ptr, State::Set> transitions;
+    Transition::Map<State::Set> transitions;
     bool isAccepted = false;
 
     dfa->startState = dfa->getState();
@@ -213,7 +217,7 @@ Automaton::Ptr subset(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr
     while (!stateSetsQ.empty()) {
         State::Set curStates = stateSetsQ.front();
         stateSetsQ.pop();
-        std::unordered_map<Transition::Ptr, State::Set> curTransitions = transitionsQ.front();
+        Transition::Map<State::Set> curTransitions = transitionsQ.front();
         transitionsQ.pop();
         for (auto &t : curTransitions) {
             epsilonStates.clear();
@@ -234,6 +238,31 @@ Automaton::Ptr subset(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr
         }
     }
     return dfa;
+}
+
+Automaton::Ptr Brzozowski(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr)) {
+    nfa->reverse();
+    auto tdfa = subset(nfa, epsilonChecker);
+    tdfa->reachableTrim();
+    tdfa->reverse();
+    auto mdfa = subset(tdfa, epsilonChecker);
+    mdfa->reachableTrim();
+    return mdfa;
+}
+
+#if 0
+void epsilonClosure(typename State::Ptr dfaState, typename State::Ptr nfaState, bool (*epsilonChecker)(Transition::Ptr), State::Set &epsilonStates, Transition::List &transitions) {
+    if (epsilonStates.find(nfaState) == epsilonStates.end()) {
+        epsilonStates.emplace(nfaState);
+        for (auto trans : nfaState->outbounds) {
+            if (epsilonChecker(trans)) {
+                if (trans->target->isAccepted)
+                    dfaState->isAccepted = true;
+                epsilonClosure(dfaState, trans->target, epsilonChecker, epsilonStates, transitions);
+            } else
+                transitions.emplace_back(trans);
+        }
+    }
 }
 
 Automaton::Ptr epsilonNfaToDfa(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr)) {
@@ -269,3 +298,4 @@ Automaton::Ptr epsilonNfaToDfa(Automaton::Ptr nfa, bool (*epsilonChecker)(Transi
     }
     return dfa;
 }
+#endif

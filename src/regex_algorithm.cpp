@@ -143,7 +143,7 @@ std::string GraphvizVisitor::repr(unsigned char c) {
     return tmp;
 }
 
-Expression::Ptr SetPositizingVisitor::merge(Expression::Ptr posit, unsigned char begin, unsigned char end) {
+Expression::Ptr SetNormalizationVisitor::rebuild(Expression::Ptr posit, unsigned char begin, unsigned char end) {
     CharRangeExpression *range = new CharRangeExpression(begin, end);
     if (posit) {
         SelectExpression *select = new SelectExpression;
@@ -155,7 +155,7 @@ Expression::Ptr SetPositizingVisitor::merge(Expression::Ptr posit, unsigned char
     return posit;
 }
 
-void SetPositizingVisitor::visit(CharRangeExpression *expression, Range<unsigned char>::List *ranges) {
+void SetNormalizationVisitor::visit(CharRangeExpression *expression, Range<unsigned char>::List *ranges) {
     if (!ranges)
         return;
     auto range = expression->range;
@@ -170,8 +170,9 @@ void SetPositizingVisitor::visit(CharRangeExpression *expression, Range<unsigned
             i->end = range.begin - 1;
             i = ranges->emplace(i, range.begin, end);
         } else if (range.begin < i->begin) {
+            auto begin = i->begin;
             i = ranges->emplace(i, range.begin, i->begin-1);
-            range.begin = i->begin;
+            range.begin = begin;
         } else if (i->end < range.end) {
             range.begin = i->end + 1;
         } else
@@ -179,37 +180,51 @@ void SetPositizingVisitor::visit(CharRangeExpression *expression, Range<unsigned
     }
     ranges->push_back(range);
 }
-void SetPositizingVisitor::visit(BeginExpression *expression, Range<unsigned char>::List *) { }
-void SetPositizingVisitor::visit(EndExpression *expression, Range<unsigned char>::List *) { }
-void SetPositizingVisitor::visit(RepeatExpression *expression, Range<unsigned char>::List *) {
+void SetNormalizationVisitor::visit(BeginExpression *expression, Range<unsigned char>::List *) { }
+void SetNormalizationVisitor::visit(EndExpression *expression, Range<unsigned char>::List *) { }
+void SetNormalizationVisitor::visit(RepeatExpression *expression, Range<unsigned char>::List *) {
     invoke(expression->expression, nullptr);
 }
-void SetPositizingVisitor::visit(SetExpression *expression, Range<unsigned char>::List *) {
-    if (!expression->isComplementary || !expression->expression)
+void SetNormalizationVisitor::visit(SetExpression *expression, Range<unsigned char>::List *) {
+    if (!expression->expression)
         return;
     Range<unsigned char>::List ranges;
     invoke(expression->expression, &ranges);
-    unsigned char begin = '\x00';
-    Expression::Ptr posit;
-    for (auto i = ranges.begin(), iend = ranges.end(); i != iend; ++i) {
-        if (begin < i->begin) {
-            posit = merge(posit, begin, i->begin-1);
+    if (expression->isComplementary) {
+        unsigned char begin = '\x00';
+        Expression::Ptr posit;
+        for (auto i = ranges.begin(), iend = ranges.end(); i != iend; ++i) {
+            if (begin < i->begin) {
+                posit = rebuild(posit, begin, i->begin-1);
+            }
+            begin = i->end+1;
+            if (i->end == '\xff')
+                break;
         }
-        begin = i->end+1;
-        if (i->end == '\xff')
-            break;
-    }
-    if (begin != '\x00')
-        posit = merge(posit, begin, '\xff');
+        if (begin != '\x00')
+            posit = rebuild(posit, begin, '\xff');
 
-    expression->isComplementary = false;
-    expression->expression = posit;
+        expression->isComplementary = false;
+        expression->expression = posit;
+    } else {
+        Expression::Ptr posit;
+        unsigned char begin = ranges.begin()->begin, end = begin - 1;
+        for (auto i = ranges.begin(), iend = ranges.end(); i != iend; ++i) {
+            if (end + 1 != i->begin) {
+                posit = rebuild(posit, begin, end);
+                begin = i->begin;
+            }
+            end = i->end;
+        }
+        posit = rebuild(posit, begin, end);
+        expression->expression = posit;
+    }
 }
-void SetPositizingVisitor::visit(ConcatenationExpression *expression, Range<unsigned char>::List *) {
+void SetNormalizationVisitor::visit(ConcatenationExpression *expression, Range<unsigned char>::List *) {
     invoke(expression->left, nullptr);
     invoke(expression->right, nullptr);
 }
-void SetPositizingVisitor::visit(SelectExpression *expression, Range<unsigned char>::List *ranges) {
+void SetNormalizationVisitor::visit(SelectExpression *expression, Range<unsigned char>::List *ranges) {
     invoke(expression->left, ranges);
     invoke(expression->right, ranges);
 }

@@ -6,14 +6,15 @@
 #include <unordered_map>
 #include <list>
 #include <memory>
+#include <functional>
 #include "container.h"
 
 struct State;
 struct Transition;
 
 struct Transition {
-    typedef std::shared_ptr<Transition> Ptr;
-    typedef std::list<Ptr> List;
+    struct Hash;
+    struct EqualTo;
     enum Type
     {
         Chars,
@@ -22,6 +23,12 @@ struct Transition {
         EndString,
         Nop
     };
+    
+    using Ptr = std::shared_ptr<Transition>;
+    using List = std::list<Ptr>;
+    template <typename Value>
+    using Map = std::unordered_map<Ptr, Value, Hash, EqualTo>;
+
     std::shared_ptr<State> source;
     std::shared_ptr<State> target;
     Range<unsigned char> range;
@@ -29,9 +36,10 @@ struct Transition {
 };
 
 struct State {
-    typedef std::shared_ptr<State> Ptr;
-    typedef std::list<Ptr> List;
-    typedef std::set<Ptr> Set;
+    using Ptr = std::shared_ptr<State>;
+    using List = std::list<Ptr>;
+    using Set = std::set<Ptr>;
+
     Transition::List inbounds;
     Transition::List outbounds;
     bool isAccepted;
@@ -58,10 +66,13 @@ public:
 
 extern bool poorEpsilonChecker(Transition::Ptr);
 extern bool richEpsilonChecker(Transition::Ptr);
-extern void epsilonClosure(State::Ptr dfaState, State::Ptr nfaState, bool (*epsilonChecker)(Transition::Ptr), State::Set &epsilonStates, Transition::List &transitions);
-extern bool epsilonClosure(typename State::Ptr nfaState, bool (*epsilonChecker)(Transition::Ptr), State::Set &epsilonStates, std::unordered_map<Transition::Ptr, State::Set> &transitions);
+extern bool epsilonClosure(typename State::Ptr nfaState, bool (*epsilonChecker)(Transition::Ptr), State::Set &epsilonStates, Transition::Map<State::Set> &transitions);
 extern Automaton::Ptr subset(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr));
+extern Automaton::Ptr Brzozowski(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr));
+#if 0
+extern void epsilonClosure(State::Ptr dfaState, State::Ptr nfaState, bool (*epsilonChecker)(Transition::Ptr), State::Set &epsilonStates, Transition::List &transitions);
 extern Automaton::Ptr epsilonNfaToDfa(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr));
+#endif
 
 struct EpsilonNfa {
     State::Ptr start;

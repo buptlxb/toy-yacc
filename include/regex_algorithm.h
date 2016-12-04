@@ -137,8 +137,8 @@ public:
     static std::string repr(unsigned char c);
 };
 
-class SetPositizingVisitor : public RegexVisitor<void, Range<unsigned char>::List *> {
-    Expression::Ptr merge(Expression::Ptr, unsigned char begin, unsigned char end);
+class SetNormalizationVisitor : public RegexVisitor<void, Range<unsigned char>::List *> {
+    Expression::Ptr rebuild(Expression::Ptr, unsigned char begin, unsigned char end);
 public:
     /*virtual*/ void visit(CharRangeExpression *expression, Range<unsigned char>::List *);
     /*virtual*/ void visit(BeginExpression *expression, Range<unsigned char>::List *);
