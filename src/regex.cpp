@@ -1,7 +1,9 @@
 #include <iostream>
 #include <fstream>
+#include <iomanip>
 #include "automaton.h"
 #include "regex_expression.h"
+#include "regex_interpreter.h"
 
 int main(int argc, char *argv[])
 {
@@ -9,42 +11,23 @@ int main(int argc, char *argv[])
     // const char *input = "(L)?'([^\\\\\\n]|(\\\\.))*?'";
     // const char *input = "[acb-xd-fz]";
     // const char *input = "[aaa]";
-    for (int i = 1; i < argc; ++i) {
-        auto regex = parseRegex(argv[i]);
-        std::ofstream ofs("r.dot");
-        regex->graphviz(ofs);
-        ofs.close();
-        regex->setNormalize();
-        auto automaton = regex->generateEpsilonNfa();
-        automaton->toMermaid(std::cout) << std::endl;;
-
-        // auto dfa = epsilonNfaToDfa(automaton, poorEpsilonChecker);
-        // dfa->toMermaid(std::cout) << std::endl;
-
-        // std::cout << "reverse1: " << automaton->states.size() << " " << automaton->transitions.size() << std::endl;
-        // automaton->reverse();
-        // automaton->toMermaid(std::cout) << std::endl;
-
-        // std::cout << "subset1: " << automaton->states.size() << " " << automaton->transitions.size()  << std::endl;
-        // auto tdfa = subset(automaton, poorEpsilonChecker);
-        // tdfa->toMermaid(std::cout) << std::endl;
-        // 
-        // std::cout << "reachable1: " << tdfa->states.size() << " " << tdfa->transitions.size()  << std::endl;
-        // tdfa->reachableTrim();
-        // tdfa->toMermaid(std::cout) << std::endl;
-
-        // std::cout << "reverse2: " << tdfa->states.size() << " " << tdfa->transitions.size()  << std::endl;
-        // tdfa->reverse();
-        // tdfa->toMermaid(std::cout) << std::endl;
-
-        // std::cout << "subset2: " << tdfa->states.size() << " " << tdfa->transitions.size()  << std::endl;
-        // auto mdfa = subset(tdfa, poorEpsilonChecker);
-        // mdfa->toMermaid(std::cout) << std::endl;
-
-        // std::cout << "reachable2: " << mdfa->states.size() << " " << mdfa->transitions.size()  << std::endl;
-        // mdfa->reachableTrim();
-        // mdfa->toMermaid(std::cout) << std::endl;
-        Brzozowski(automaton, poorEpsilonChecker)->toMermaid(std::cout) << std::endl;
+    if (argc < 2) {
+        std::cout << "Usage: " << argv[0] << " pattern [match] ..." << std::endl;
+        return -1;
+    }
+    auto regex = parseRegex(argv[1]);
+    std::ofstream ofs("r.dot");
+    regex->graphviz(ofs);
+    ofs.close();
+    regex->setNormalize();
+    auto automaton = regex->generateEpsilonNfa();
+    //automaton->toMermaid(std::cout) << std::endl;;
+    auto dfa = Brzozowski(automaton, poorEpsilonChecker);
+    PoorInterpreter *iterpreter = new PoorInterpreter(dfa);
+    for (int i = 2; i < argc; ++i) {
+        PoorInterpreter::Result result;
+        bool match = iterpreter->search(argv[i], &result);
+        std::cout << "Case #" << i-1 << ": " << std::boolalpha << match << "(" << result.start << ", " << result.length << ", " << result.terminateState << ", " << result.acceptedState << ")" << std::endl;
     }
     return 0;
 }

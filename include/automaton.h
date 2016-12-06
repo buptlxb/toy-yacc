@@ -69,10 +69,6 @@ extern bool richEpsilonChecker(Transition::Ptr);
 extern bool epsilonClosure(typename State::Ptr nfaState, bool (*epsilonChecker)(Transition::Ptr), State::Set &epsilonStates, Transition::Map<State::Set> &transitions);
 extern Automaton::Ptr subset(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr));
 extern Automaton::Ptr Brzozowski(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr));
-#if 0
-extern void epsilonClosure(State::Ptr dfaState, State::Ptr nfaState, bool (*epsilonChecker)(Transition::Ptr), State::Set &epsilonStates, Transition::List &transitions);
-extern Automaton::Ptr epsilonNfaToDfa(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr));
-#endif
 
 struct EpsilonNfa {
     State::Ptr start;
