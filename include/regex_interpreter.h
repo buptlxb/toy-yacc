@@ -28,9 +28,25 @@ public:
 };
 
 class RichInterpreter {
+public:
+    struct Result {
+        int32_t start;
+        int32_t length;
+        State::Ptr terminateState;
+        State::Ptr acceptedState;
+    };
+    struct StatusSaver {
+        State::Ptr state;
+        const char *reading;
+        Transition::List::iterator transition;
+    };
 protected:
     Automaton::Ptr dfa;
+    std::unordered_map<State::Ptr, bool> stateMap;
 public:
+    RichInterpreter(Automaton::Ptr dfa);
+    bool match(const char *input, Result *result=nullptr, uint32_t offset=0); 
+    bool search(const char *input, Result *result=nullptr, uint32_t offset=0);
 };
 
 #endif

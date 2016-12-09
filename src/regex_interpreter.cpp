@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <cstring>
+#include <stack>
 #include "regex_interpreter.h"
 #include "utility.h"
 
@@ -84,15 +85,15 @@ bool PoorInterpreter::match(const char *input, Result *result, uint32_t offset) 
     int32_t currentState = startState;
     int32_t acceptedState = InvalidState;
     int32_t length = -1;
-    const char *read = input;
+    const char *reading = input;
     while (currentState != InvalidState) {
         if (acceptedStates[currentState]) {
             acceptedState = currentState;
-            length = read - input;
+            length = reading - input;
         }
-        if (!*read || *read >= CharMapSize)
+        if (!*reading || *reading >= CharMapSize)
             break;
-        int16_t charCat = charMap[*read++];
+        int16_t charCat = charMap[*reading++];
         currentState = transitionTable[currentState][charCat];
     }
     if (result) {
@@ -102,4 +103,90 @@ bool PoorInterpreter::match(const char *input, Result *result, uint32_t offset) 
         result->acceptedState = acceptedState;
     }
     return acceptedState != InvalidState;
+}
+
+RichInterpreter::RichInterpreter(Automaton::Ptr _dfa) : dfa(_dfa) {
+    for (auto state : dfa->states) {
+        int32_t charEdge = 0, nonCharEdge = 0;
+        for (auto transition : state->outbounds) {
+            switch (transition->type) {
+                case Transition::Chars:
+                    ++charEdge;
+                    break;
+                default:
+                    ++nonCharEdge;
+            }
+        }
+        stateMap[state] = nonCharEdge > 1 || nonCharEdge && charEdge;
+    }
+}
+
+bool RichInterpreter::search(const char *input, Result *result, uint32_t offset) {
+    if (offset >= strlen(input))
+        return false;
+    while (input[offset]) {
+        if (match(input, result, offset++))
+            return true;
+    }
+}
+
+bool RichInterpreter::match(const char *input, Result *result, uint32_t offset) {
+    if (offset >= strlen(input))
+        return false;
+    input += offset;
+    const char *read = input;
+    std::stack<StatusSaver> statusStack;
+    StatusSaver currentStatus;
+    currentStatus.state = dfa->startState;
+    currentStatus.reading = input;
+    currentStatus.transition = dfa->startState->outbounds.begin();
+    while (!currentStatus.state->isAccepted) {
+        StatusSaver saved = currentStatus;
+        bool found = false;
+        for (auto transition = currentStatus.transition; transition != currentStatus.state->outbounds.end(); ++transition) {
+            switch ((*transition)->type) {
+                case Transition::Chars:
+                    if ((*transition)->range.contains(*currentStatus.reading)) {
+                        found = true;
+                        ++(currentStatus.reading);
+                    }
+                    break;
+                case Transition::Nop:
+                    found = true;
+                    break;
+                case Transition::BeginString:
+                    found = !offset && currentStatus.reading == input;
+                    break;
+                case Transition::EndString:
+                    found = *currentStatus.reading == '\0';
+                    break;
+                default:
+                    assertm(0, "Unkown transition type");
+            }
+            if (found) {
+                if (stateMap[currentStatus.state]) {
+                    saved.transition = transition;
+                    ++(saved.transition);
+                    statusStack.push(saved);
+                }
+                currentStatus.state = (*transition)->target;
+                currentStatus.transition = currentStatus.state->outbounds.begin();
+                break;
+            }
+        }
+        if (!found) {
+            if (!statusStack.empty()) {
+                currentStatus = statusStack.top();
+                statusStack.pop();
+            } else
+                break;
+        }
+    }
+    if (result) {
+        result->start = offset;
+        result->length = currentStatus.reading - input;
+        result->terminateState = currentStatus.state;
+        result->acceptedState = currentStatus.state;
+    }
+    return currentStatus.state->isAccepted;
 }

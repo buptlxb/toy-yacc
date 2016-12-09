@@ -20,7 +20,7 @@ struct Range {
         return !(*this == that);
     }
 
-    bool contain(T c) {
+    bool contains(T c) {
         return this->begin <= c && c <= this->end;
     }
 };
