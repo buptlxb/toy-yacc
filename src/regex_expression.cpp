@@ -2,7 +2,6 @@
 #include "regex_expression.h"
 #include "regex_exception.h"
 #include "regex_algorithm.h"
-#include "utility.h"
 
 bool Expression::equals(Expression *target) {
     return EqualsVisitor().invoke(this, target);

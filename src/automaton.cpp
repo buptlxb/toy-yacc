@@ -197,7 +197,7 @@ bool epsilonClosure(typename State::Ptr nfaState, bool (*epsilonChecker)(Transit
     return isAccepted;
 }
 
-Automaton::Ptr subset(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr)) {
+Automaton::Ptr powerset(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr)) {
     Automaton::Ptr dfa(new Automaton);
     std::map<State::List, State::Ptr> dict;
     std::queue<State::List> statesQ;
@@ -262,7 +262,7 @@ std::vector<State::Set> split(State::Set states, const std::set<State::Set> &par
     }
     ret[0].emplace(*i);
     for (++i; i != iend; ++i) {
-        int index = 0;
+        size_t index = 0;
         for (auto transition : (*i)->outbounds) {
             if (dict.find(transition) == dict.end() || dict[transition]->find(transition->target) == dict[transition]->end()) {
                 index = 1;
@@ -276,7 +276,7 @@ std::vector<State::Set> split(State::Set states, const std::set<State::Set> &par
     return ret;
 }
 
-Automaton::Ptr Hopcroft(Automaton::Ptr dfa, bool (*epsilonChecker)(Transition::Ptr)) {
+Automaton::Ptr Hopcroft(Automaton::Ptr dfa) {
     State::Set acceptedStates, nonacceptedStates;
     for (auto state : dfa->states) {
         if (state->isAccepted)
@@ -327,13 +327,13 @@ Automaton::Ptr Brzozowski(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition:
     //nfa->toMermaid(std::cout) << std::endl;
     nfa->reverse();
     //nfa->toMermaid(std::cout) << std::endl;
-    auto tdfa = subset(nfa, epsilonChecker);
+    auto tdfa = powerset(nfa, epsilonChecker);
     //tdfa->toMermaid(std::cout) << std::endl;
     tdfa->reachableTrim();
     //tdfa->toMermaid(std::cout) << std::endl;
     tdfa->reverse();
     //tdfa->toMermaid(std::cout) << std::endl;
-    auto mdfa = subset(tdfa, epsilonChecker);
+    auto mdfa = powerset(tdfa, epsilonChecker);
     mdfa->toMermaid(std::cout) << std::endl;
     //mdfa->reachableTrim();
     mdfa->toMermaid(std::cout) << std::endl;

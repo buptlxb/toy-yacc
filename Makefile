@@ -3,12 +3,14 @@ BIN := toy-yacc
 
 BUILD_DIR := build
 SRC_DIR := src
+TEST_DIR := test
 
 INCLUDE := -I./include
 CFLAGS := -g -O0 -Wall #-O3
 CXXFLAGS := -std=c++11 -g -O0
 CXX := g++ 
 CC := gcc
+ARFLAGS := r
 
 ##############################################
 
@@ -22,8 +24,9 @@ OBJ_S := $(subst $(SRC_DIR)/,,$(OBJ2))
 DEP1 := $(patsubst %.cpp,%.d,${SRC1})
 DEP2 := $(patsubst %.c,%.d,${DEP1})
 DEP := $(subst $(SRC_DIR)/,$(BUILD_DIR)/,$(DEP2))
+LIBOBJ := $(subst $(BUILD_DIR)/regex.o,,$(OBJ))
 
-.PHONY: all clean
+.PHONY: all clean test
 
 vpath %.cpp $(SRC_DIR)
 vpath %.c $(SRC_DIR)
@@ -35,6 +38,11 @@ all: $(OBJ_S)
 	$(CXX) $(OBJ) $(LIBS) $(CXXFLAGS) -o $(BIN);\
 	then echo -e "[\e[32;1mLINK\e[m] \e[33m$(OBJ) \e[m \e[36m->\e[m \e[32;1m$(BIN)\e[m"; \
 	else echo -e "[\e[31mFAIL\e[m] \e[33m$(OBJ) \e[m \e[36m->\e[m \e[32;1m$(BIN)\e[m"; exit -1; fi;
+	@if \
+	$(AR) $(ARFLAGS) $(BIN).a $(LIBOBJ);\
+	then echo -e "[\e[32;1mAR\e[m] \e[33m$(LIBOBJ) \e[m \e[36m->\e[m \e[32;1m$(BIN).a\e[m"; \
+	else echo -e "[\e[31mFAIL\e[m] \e[33m$(LIBOBJ) \e[m \e[36m->\e[m \e[32;1m$(BIN).a\e[m"; exit -1; fi;
+
 
 -include $(DEP) 
 
@@ -66,8 +74,10 @@ $(BUILD_DIR)/%.d: %.c
 	then echo -e "[\e[32mCC  \e[m] \e[33m$<\e[m \e[36m->\e[m \e[33;1m$(BUILD_DIR)/$@\e[m"; \
 	else echo -e "[\e[31mFAIL\e[m] \e[33m$<\e[m \e[36m->\e[m \e[33;1m$(BUILD_DIR)/$@\e[m"; exit -1; fi;
 
+test : all
+	$(MAKE) -C $(TEST_DIR)
 
 clean:
-	@echo -e "[\e[32mCLEAN\e[m] \e[33m$(BIN) $(BUILD_DIR)\e[m"
-	@rm -rf $(BIN) build
-
+	@echo -e "[\e[32mCLEAN\e[m] \e[33m$(BIN) $(BIN).a $(BUILD_DIR)\e[m"
+	@rm -rf $(BIN) $(BIN).a build
+	$(MAKE) -C $(TEST_DIR) clean

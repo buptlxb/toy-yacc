@@ -5,7 +5,6 @@
 #include "regex_expression.h"
 #include "regex_interpreter.h"
 
-
 int main(int argc, char *argv[])
 {
     // const char *input = "(([0-9]+)(\\.[0-9]+)(e(\\+|-)?([0-9]+))?|([0-9]+)e(\\+|-)?([0-9]+))([lL]|[fF])?";
@@ -23,9 +22,9 @@ int main(int argc, char *argv[])
     regex->setNormalize();
     auto automaton = regex->generateEpsilonNfa();
     //automaton->toMermaid(std::cout) << std::endl;
-    auto dfa = subset(automaton, richEpsilonChecker);
+    auto dfa = powerset(automaton, richEpsilonChecker);
     //dfa->toMermaid(std::cout) << std::endl;
-    dfa = Hopcroft(dfa, richEpsilonChecker);
+    dfa = Hopcroft(dfa);
     //dfa->toMermaid(std::cout) << std::endl;
     RichInterpreter *iterpreter = new RichInterpreter(dfa);
     for (int i = 2; i < argc; ++i) {
