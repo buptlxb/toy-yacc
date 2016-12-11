@@ -109,7 +109,7 @@ char parseChar(const char *&input) {
 }
 
 /**
- *  <set-item> ::= <range> | <char>
+ *  <SetItem> ::= <range> | <char>
  *  <range> ::= <char> "-" <char>
 **/
 Expression::Ptr parseSetItem(const char *&input) {
@@ -127,7 +127,7 @@ Expression::Ptr parseSetItem(const char *&input) {
 }
 
 /**
- *  <SetItems> ::= <SetItem> | <setItem> <SetItems>
+ *  <SetItems> ::= <SetItem> | <SetItem> <SetItems>
 **/
 Expression::Ptr parseSetItems(const char *&input) {
     if (!*input || *input == ']')
@@ -143,7 +143,7 @@ Expression::Ptr parseSetItems(const char *&input) {
 }
 
 /**
- *  <ElementaryRE> ::= <group> | <any> | <eos> | <bos> | <char> | <set>
+ *  <ElementaryRE> ::= <group> | <any> | <eos> | <bos> | <char> | <set> |
  *  <group> ::= "(" <RE> ")"
  *  <any> ::= "."
  *  <eos> ::= "$"

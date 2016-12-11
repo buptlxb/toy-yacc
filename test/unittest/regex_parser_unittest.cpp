@@ -6,6 +6,7 @@
 #include <climits>
 #include <iostream>
 #include "regex_expression.h"
+#include "regex_writer.h"
 #include "gtest/gtest.h"
 
 
@@ -20,159 +21,105 @@
 
 const char *input;
 
+typedef Expression::Ptr (*Parser)(const char *&);
+
+#define REGEX_ASSERT2(str, expect) do { \
+    const char *input = str; EXPECT_EQ(parseChar(input), expect); \
+} while (0)
+
+#define REGEX_ASSERT3(str, node, parse) { \
+    const char *input = str; EXPECT_TRUE(parse(input)->equals((node).expression.get())); \
+} while (0)
+
 TEST(RegexParser, Char) {
-    input = "\r";
-    EXPECT_EQ(parseChar(input), '\r');
-    input = "\n";
-    EXPECT_EQ(parseChar(input), '\n');
-    input = "\t";
-    EXPECT_EQ(parseChar(input), '\t');
-    input = "\\-";
-    EXPECT_EQ(parseChar(input), '-');
-    input = "\\[";
-    EXPECT_EQ(parseChar(input), '[');
-    input = "\\]";
-    EXPECT_EQ(parseChar(input), ']');
-    input = "\\^";
-    EXPECT_EQ(parseChar(input), '^');
-    input = "\\$";
-    EXPECT_EQ(parseChar(input), '$');
+    REGEX_ASSERT2("\r", '\r');
+    REGEX_ASSERT2("\n", '\n');
+    REGEX_ASSERT2("\t", '\t');
+    REGEX_ASSERT2("\\-", '-');
+    REGEX_ASSERT2("\\[", '[');
+    REGEX_ASSERT2("\\]", ']');
+    REGEX_ASSERT2("\\^", '^');
+    REGEX_ASSERT2("\\$", '$');
 }
 
 TEST(RegexParser, SetItem) {
-    input = "a-b";
-    EXPECT_TRUE(parseSetItem(input)->equals(new CharRangeExpression('a', 'b')));
-    input = "a";
-    EXPECT_TRUE(parseSetItem(input)->equals(new CharRangeExpression('a', 'a')));
-    input = "\\-";
-    EXPECT_TRUE(parseSetItem(input)->equals(new CharRangeExpression('-', '-')));
+    REGEX_ASSERT3("a-b", rR('a', 'b'), parseSetItem);
+    REGEX_ASSERT3("a", rR('a'), parseSetItem);
+    REGEX_ASSERT3("\\-", rR('-'), parseSetItem);
 }
 
 TEST(RegexParser, SetItems) {
-    input = "a-b";
-    EXPECT_TRUE(parseSetItems(input)->equals(new CharRangeExpression('a', 'b')));
-    input = "a-bx";
-    SelectExpression *con = new SelectExpression;
-    con->left = Expression::Ptr(new CharRangeExpression('a', 'b'));
-    con->right = Expression::Ptr(new CharRangeExpression('x', 'x'));
-    EXPECT_TRUE(parseSetItems(input)->equals(con));
+    REGEX_ASSERT3("a-b", rR('a', 'b'), parseSetItems);
+    REGEX_ASSERT3("a-bx", rR('a', 'b') | rR('x'), parseSetItems);
 }
 
 TEST(RegexParser, ElementaryRE) {
-    input = "^";
-    EXPECT_TRUE(parseElementaryRE(input)->equals(new BeginExpression));
-    input = "$";
-    EXPECT_TRUE(parseElementaryRE(input)->equals(new EndExpression));
-    input = ".";
-    EXPECT_TRUE(parseElementaryRE(input)->equals(new CharRangeExpression('\x00', '\xFF')));
-
-    input = "[a-bx]*";
-    SelectExpression *con = new SelectExpression;
-    con->left = Expression::Ptr(new CharRangeExpression('a', 'b'));
-    con->right = Expression::Ptr(new CharRangeExpression('x', 'x'));
-    SetExpression *set = new SetExpression;
-    set->isComplementary = false;
-    set->expression = Expression::Ptr(con);
-    EXPECT_TRUE(parseElementaryRE(input)->equals(set));
-
-    input = "[^qa-bx-z]";
-    con = new SelectExpression;
-    con->left = Expression::Ptr(new CharRangeExpression('a', 'b'));
-    con->right = Expression::Ptr(new CharRangeExpression('x', 'z'));
-    SelectExpression *con1 = new SelectExpression;
-    con1->left = Expression::Ptr(new CharRangeExpression('q', 'q'));
-    con1->right = Expression::Ptr(con);
-    set = new SetExpression;
-    set->isComplementary = true;
-    set->expression = Expression::Ptr(con1);
-    EXPECT_TRUE(parseElementaryRE(input)->equals(set));
+    REGEX_ASSERT3("\\r", rR('\r'), parseElementaryRE);
+    REGEX_ASSERT3("\\n", rR('\n'), parseElementaryRE);
+    REGEX_ASSERT3("\\t", rR('\t'), parseElementaryRE);
+    REGEX_ASSERT3("\\.", rR('.'), parseElementaryRE);
+    REGEX_ASSERT3("^", rBegin(), parseElementaryRE);
+    REGEX_ASSERT3("$", rEnd(), parseElementaryRE);
+    REGEX_ASSERT3(".", rAnyChar(), parseElementaryRE);
+    REGEX_ASSERT3("[0-9]", rD(), parseElementaryRE);
+    REGEX_ASSERT3("[A-Za-z_]", rL(), parseElementaryRE);
+    REGEX_ASSERT3("[A-Za-z0-9_]", rW(), parseElementaryRE);
+    REGEX_ASSERT3("[^0-9]", !rD(), parseElementaryRE);
+    REGEX_ASSERT3("[^A-Za-z_]", !rL(), parseElementaryRE);
+    REGEX_ASSERT3("[^A-Za-z0-9_]", !rW(), parseElementaryRE);
 }
 
 TEST(RegexParser, BasicRE) {
-    input = "[a-bx]*";
-    SelectExpression *con = new SelectExpression;
-    con->left = Expression::Ptr(new CharRangeExpression('a', 'b'));
-    con->right = Expression::Ptr(new CharRangeExpression('x', 'x'));
-    SetExpression *set = new SetExpression;
-    set->isComplementary = false;
-    set->expression = Expression::Ptr(con);
-    RepeatExpression *repeat = new RepeatExpression(0, -1, true);
-    repeat->expression = Expression::Ptr(set);
-    EXPECT_TRUE(parseBasicRE(input)->equals(repeat));
-
-    input = "[1-9]+";
-    SetExpression *set2 = new SetExpression;
-    set2->isComplementary = false;
-    set2->expression = Expression::Ptr(new CharRangeExpression('1', '9'));
-    RepeatExpression *repeat2 = new RepeatExpression(1, -1, true);
-    repeat2->expression = Expression::Ptr(set2);
-    EXPECT_TRUE(parseBasicRE(input)->equals(repeat2));
+    REGEX_ASSERT3("[0-9]*", rD().zeroOrMore(), parseBasicRE);
+    REGEX_ASSERT3("[0-9]+", rD().oneOrMore(), parseBasicRE);
+    REGEX_ASSERT3("[0-9]?", rD().zeroOrOne(), parseBasicRE);
+    REGEX_ASSERT3("[0-9]*?", rD().zeroOrMore(false), parseBasicRE);
+    REGEX_ASSERT3("[0-9]+?", rD().oneOrMore(false), parseBasicRE);
+    REGEX_ASSERT3("[0-9]??", rD().zeroOrOne(false), parseBasicRE);
+    REGEX_ASSERT3("[a-bx]*", (rC('a', 'b') <<= rC('x')).zeroOrMore(), parseBasicRE);
+    REGEX_ASSERT3("[1-9]+", rC('1', '9').oneOrMore(), parseBasicRE);
 }
 
 TEST(RegexParser, SimpleRE) {
-    const char *input = "[a-bx]*[1-9]+";
-
-    SelectExpression *con = new SelectExpression;
-    con->left = Expression::Ptr(new CharRangeExpression('a', 'b'));
-    con->right = Expression::Ptr(new CharRangeExpression('x', 'x'));
-    SetExpression *set = new SetExpression;
-    set->isComplementary = false;
-    set->expression = Expression::Ptr(con);
-    RepeatExpression *repeat = new RepeatExpression(0, -1, true);
-    repeat->expression = Expression::Ptr(set);
-
-    SetExpression *set2 = new SetExpression;
-    set2->isComplementary = false;
-    set2->expression = Expression::Ptr(new CharRangeExpression('1', '9'));
-    RepeatExpression *repeat2 = new RepeatExpression(1, -1, true);
-    repeat2->expression = Expression::Ptr(set2);
-
-    ConcatenationExpression *con2 = new ConcatenationExpression;
-    con2->left = Expression::Ptr(repeat);
-    con2->right = Expression::Ptr(repeat2);
-
-    EXPECT_TRUE(parseSimpleRE(input)->equals(con2));
+    REGEX_ASSERT3("a+(bc)*", rR('a').oneOrMore() + (rR('b') + rR('c')).zeroOrMore(), parseSimpleRE);
+    REGEX_ASSERT3("(1+2)*(3+4)", (rR('1').oneOrMore() + rR('2')).zeroOrMore() + (rR('3').oneOrMore() + rR('4')), parseSimpleRE);
+    REGEX_ASSERT3("[A-Za-z_][A-Za-z0-9_]*", rL() + rW().zeroOrMore(), parseSimpleRE);
+    REGEX_ASSERT3(".*[\\r\\n\\t]", rAnyChar().zeroOrMore() + (rC('\r') <<= rC('\n') <<= rC('\t')), parseSimpleRE);
+    REGEX_ASSERT3("[a-bx]*[1-9]+", ((rC('a', 'b') <<= rC('x')).zeroOrMore() + rC('1', '9').oneOrMore()), parseSimpleRE);
 }
 
 TEST(RegexParser, RE) {
-    input = "[A-Za-z_][A-Za-z0-9_]*";
+    REGEX_ASSERT3("\\r", rR('\r'), parseRE);
+    REGEX_ASSERT3("\\n", rR('\n'), parseRE);
+    REGEX_ASSERT3("\\t", rR('\t'), parseRE);
+    REGEX_ASSERT3("\\.", rR('.'), parseRE);
+    REGEX_ASSERT3("^", rBegin(), parseRE);
+    REGEX_ASSERT3("$", rEnd(), parseRE);
+    REGEX_ASSERT3(".", rAnyChar(), parseRE);
+    REGEX_ASSERT3("[0-9]", rD(), parseRE);
+    REGEX_ASSERT3("[A-Za-z_]", rL(), parseRE);
+    REGEX_ASSERT3("[A-Za-z0-9_]", rW(), parseRE);
+    REGEX_ASSERT3("[^0-9]", !rD(), parseRE);
+    REGEX_ASSERT3("[^A-Za-z_]", !rL(), parseRE);
+    REGEX_ASSERT3("[^A-Za-z0-9_]", !rW(), parseRE);
 
-    SelectExpression *con1 = new SelectExpression;
-    con1->right = Expression::Ptr(new CharRangeExpression('_', '_'));
-    con1->left = Expression::Ptr(new CharRangeExpression('a', 'z'));
+    REGEX_ASSERT3("[0-9]*", rD().zeroOrMore(), parseRE);
+    REGEX_ASSERT3("[0-9]+", rD().oneOrMore(), parseRE);
+    REGEX_ASSERT3("[0-9]?", rD().zeroOrOne(), parseRE);
+    REGEX_ASSERT3("[0-9]*?", rD().zeroOrMore(false), parseRE);
+    REGEX_ASSERT3("[0-9]+?", rD().oneOrMore(false), parseRE);
+    REGEX_ASSERT3("[0-9]??", rD().zeroOrOne(false), parseRE);
+    REGEX_ASSERT3("[a-bx]*", (rC('a', 'b') <<= rC('x')).zeroOrMore(), parseRE);
+    REGEX_ASSERT3("[1-9]+", rC('1', '9').oneOrMore(), parseRE);
 
-    SelectExpression *con2 = new SelectExpression;
-    con2->left = Expression::Ptr(new CharRangeExpression('A', 'Z'));
-    con2->right = Expression::Ptr(con1);
+    REGEX_ASSERT3("a+(bc)*", rR('a').oneOrMore() + (rR('b') + rR('c')).zeroOrMore(), parseRE);
+    REGEX_ASSERT3("(1+2)*(3+4)", (rR('1').oneOrMore() + rR('2')).zeroOrMore() + (rR('3').oneOrMore() + rR('4')), parseRE);
+    REGEX_ASSERT3("[A-Za-z_][A-Za-z0-9_]*", rL() + rW().zeroOrMore(), parseSimpleRE);
+    REGEX_ASSERT3(".*[\\r\\n\\t]", rAnyChar().zeroOrMore() + (rC('\r') <<= rC('\n') <<= rC('\t')), parseRE);
+    REGEX_ASSERT3("[a-bx]*[1-9]+", ((rC('a', 'b') <<= rC('x')).zeroOrMore() + rC('1', '9').oneOrMore()), parseRE);
 
-    SetExpression *set1 = new SetExpression;
-    set1->expression = Expression::Ptr(con2);
-    set1->isComplementary = false;
-
-    SelectExpression *con3 = new SelectExpression;
-    con3->right = Expression::Ptr(new CharRangeExpression('_', '_'));
-    con3->left = Expression::Ptr(new CharRangeExpression('0', '9'));
-
-    SelectExpression *con4 = new SelectExpression;
-    con4->right = Expression::Ptr(con3);
-    con4->left = Expression::Ptr(new CharRangeExpression('a', 'z'));
-
-    SelectExpression *con5 = new SelectExpression;
-    con5->right = Expression::Ptr(con4);
-    con5->left = Expression::Ptr(new CharRangeExpression('A', 'Z'));
-
-    SetExpression *set2 = new SetExpression;
-    set2->expression = Expression::Ptr(con5);
-    set2->isComplementary = false;
-
-    RepeatExpression *repeat = new RepeatExpression(0, -1, true);
-    repeat->expression = Expression::Ptr(set2);
-
-    ConcatenationExpression *con6 = new ConcatenationExpression;
-    con6->left = Expression::Ptr(set1);
-    con6->right = Expression::Ptr(repeat);
-
-    EXPECT_TRUE(parseRE(input)->equals(con6));
+    REGEX_ASSERT3("ab|ac", (rR('a') + rR('b')) | (rR('a') + rR('c')), parseRE);
+    REGEX_ASSERT3("a(b|c)", rR('a') + (rR('b') | rR('c')), parseRE);
 }
 
 // Step 3. Call RUN_ALL_TESTS() in main().

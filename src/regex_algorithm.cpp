@@ -33,11 +33,13 @@ bool EqualsVisitor::visit(SetExpression *expression, Expression *target) {
         return false;
     if (expression->isComplementary != that->isComplementary)
         return false;
-    if (!expression->expression ^ !that->expression)
-        return false;
+    // if (!expression->expression ^ !that->expression)
+    //     return false;
     if (!expression->expression && !that->expression)
         return true;
-    return invoke(expression->expression, that->expression.get());
+    if (expression->expression && that->expression)
+        return invoke(expression->expression, that->expression.get());
+    return false;
 }
 
 bool EqualsVisitor::visit(ConcatenationExpression *expression, Expression *target) {

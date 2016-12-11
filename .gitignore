@@ -34,3 +34,6 @@
 
 build
 toy-yacc
+toy-yacc.a
+test/barget
+test/build

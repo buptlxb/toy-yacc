@@ -33,7 +33,9 @@ vpath %.c $(SRC_DIR)
 vpath %.d $(BUILD_DIR)
 vpath %.o $(BUILD_DIR)
 
-all: $(OBJ_S)
+all : $(BIN) test
+
+$(BIN) : $(OBJ_S)
 	@if \
 	$(CXX) $(OBJ) $(LIBS) $(CXXFLAGS) -o $(BIN);\
 	then echo -e "[\e[32;1mLINK\e[m] \e[33m$(OBJ) \e[m \e[36m->\e[m \e[32;1m$(BIN)\e[m"; \
@@ -74,7 +76,7 @@ $(BUILD_DIR)/%.d: %.c
 	then echo -e "[\e[32mCC  \e[m] \e[33m$<\e[m \e[36m->\e[m \e[33;1m$(BUILD_DIR)/$@\e[m"; \
 	else echo -e "[\e[31mFAIL\e[m] \e[33m$<\e[m \e[36m->\e[m \e[33;1m$(BUILD_DIR)/$@\e[m"; exit -1; fi;
 
-test : all
+test : $(BIN)
 	$(MAKE) -C $(TEST_DIR)
 
 clean:
