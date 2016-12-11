@@ -8,3 +8,7 @@ yet another toy compiler compiler
 - [x] NFA to DFA (Deterministic Finite Automaton)
 - [x] Minimizie the DFA
 - [x] General DFA engine
+- [x] Test with googletest
+
+----
+special thanks to vczh.
