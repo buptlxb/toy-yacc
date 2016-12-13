@@ -160,27 +160,7 @@ Expression::Ptr SetNormalizationVisitor::rebuild(Expression::Ptr posit, unsigned
 void SetNormalizationVisitor::visit(CharRangeExpression *expression, Range<unsigned char>::List *ranges) {
     if (!ranges)
         return;
-    auto range = expression->range;
-    for (auto i = ranges->begin(), iend = ranges->end(); i != iend; ++i) {
-        if (range.end < i->begin) {
-            ranges->emplace(i, range);
-            return;
-        } else if (i->end < range.begin)
-            ;
-        else if (i->begin < range.begin) {
-            auto end = i->end;
-            i->end = range.begin - 1;
-            i = ranges->emplace(i, range.begin, end);
-        } else if (range.begin < i->begin) {
-            auto begin = i->begin;
-            i = ranges->emplace(i, range.begin, i->begin-1);
-            range.begin = begin;
-        } else if (i->end < range.end) {
-            range.begin = i->end + 1;
-        } else
-            return;
-    }
-    ranges->push_back(range);
+    marshalRange(expression->range, *ranges);
 }
 void SetNormalizationVisitor::visit(BeginExpression *expression, Range<unsigned char>::List *) { }
 void SetNormalizationVisitor::visit(EndExpression *expression, Range<unsigned char>::List *) { }
@@ -193,30 +173,30 @@ void SetNormalizationVisitor::visit(SetExpression *expression, Range<unsigned ch
     Range<unsigned char>::List ranges;
     invoke(expression->expression, &ranges);
     if (expression->isComplementary) {
-        unsigned char begin = '\x00';
+        unsigned char end = '\xff';
         Expression::Ptr posit;
-        for (auto i = ranges.begin(), iend = ranges.end(); i != iend; ++i) {
-            if (begin < i->begin) {
-                posit = rebuild(posit, begin, i->begin-1);
+        for (auto i = ranges.rbegin(), iend = ranges.rend(); i != iend; ++i) {
+            if (end > i->end) {
+                posit = rebuild(posit, i->end+1, end);
             }
-            begin = i->end+1;
-            if (i->end == '\xff')
+            end = i->begin - 1;
+            if (i->begin == '\x00')
                 break;
         }
-        if (begin != '\x00')
-            posit = rebuild(posit, begin, '\xff');
+        if (end != '\xff')
+            posit = rebuild(posit, '\x00', end);
 
         expression->isComplementary = false;
         expression->expression = posit;
     } else {
         Expression::Ptr posit;
-        unsigned char begin = ranges.begin()->begin, end = begin - 1;
-        for (auto i = ranges.begin(), iend = ranges.end(); i != iend; ++i) {
-            if (end + 1 != i->begin) {
+        unsigned char begin = ranges.rbegin()->end+1, end = ranges.rbegin()->end;
+        for (auto i = ranges.rbegin(), iend = ranges.rend(); i != iend; ++i) {
+            if (begin-1 != i->end) {
                 posit = rebuild(posit, begin, end);
-                begin = i->begin;
+                end = i->end;
             }
-            end = i->end;
+            begin = i->begin;
         }
         posit = rebuild(posit, begin, end);
         expression->expression = posit;

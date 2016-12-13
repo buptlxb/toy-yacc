@@ -6,6 +6,7 @@
 
 class PoorInterpreter {
 public:
+    using Ptr = std::shared_ptr<PoorInterpreter>;
     struct Result {
         int32_t start;
         int32_t length;
@@ -23,12 +24,14 @@ public:
     static constexpr int CharMapSize = 256;
     static constexpr int InvalidState = -1;
     PoorInterpreter(Automaton::Ptr dfa);
-    bool match(const char *input, Result *result=nullptr, uint32_t offset=0); 
+    bool match(const char *input);
     bool search(const char *input, Result *result=nullptr, uint32_t offset=0);
+    bool searchHead(const char *input, Result *result=nullptr, uint32_t offset=0); 
 };
 
 class RichInterpreter {
 public:
+    using Ptr = std::shared_ptr<RichInterpreter>;
     struct Result {
         int32_t start;
         int32_t length;
@@ -45,8 +48,9 @@ protected:
     std::unordered_map<State::Ptr, bool> stateMap;
 public:
     RichInterpreter(Automaton::Ptr dfa);
-    bool match(const char *input, Result *result=nullptr, uint32_t offset=0); 
+    bool match(const char *input);
     bool search(const char *input, Result *result=nullptr, uint32_t offset=0);
+    bool searchHead(const char *input, Result *result=nullptr, uint32_t offset=0); 
 };
 
 #endif

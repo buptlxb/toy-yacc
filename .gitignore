@@ -35,5 +35,5 @@
 build
 toy-yacc
 toy-yacc.a
-test/barget
+test/target
 test/build

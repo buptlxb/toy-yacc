@@ -2,37 +2,19 @@
 #include <unordered_map>
 #include <cstring>
 #include <stack>
+#include <iostream>
 #include "regex_interpreter.h"
 #include "utility.h"
 
 constexpr int PoorInterpreter::CharMapSize;
 constexpr int PoorInterpreter::InvalidState;
 
-PoorInterpreter::PoorInterpreter(Automaton::Ptr dfa) : charMap(CharMapSize, CharMapSize) {
+PoorInterpreter::PoorInterpreter(Automaton::Ptr dfa) {
     Range<unsigned char>::List ranges;
     for (auto transition : dfa->transitions) {
-        auto range = transition->range;
-        for (auto i = ranges.begin(), iend = ranges.end(); i != iend; ++i) {
-            if (range.end < i->begin) {
-                ranges.emplace(i, range);
-                return;
-            } else if (i->end < range.begin)
-                ;
-            else if (i->begin < range.begin) {
-                auto end = i->end;
-                i->end = range.begin - 1;
-                i = ranges.emplace(i, range.begin, end);
-            } else if (range.begin < i->begin) {
-                auto begin = i->begin;
-                i = ranges.emplace(i, range.begin, i->begin-1);
-                range.begin = begin;
-            } else if (i->end < range.end) {
-                range.begin = i->end + 1;
-            } else
-                return;
-        }
-        ranges.push_back(range);
+        marshalRange(transition->range, ranges);
     }
+    stateCount = dfa->states.size();
     acceptedStates.resize(stateCount);
     std::unordered_map<State::Ptr, int32_t> stateMap;
     int32_t index = 0;
@@ -41,11 +23,11 @@ PoorInterpreter::PoorInterpreter(Automaton::Ptr dfa) : charMap(CharMapSize, Char
         stateMap.emplace(state, index++);
     }
     charCategories = ranges.size() + 1;
-    stateCount = dfa->states.size();
+    charMap.resize(CharMapSize, charCategories-1);
     startState = stateMap[dfa->startState];
     auto iter = ranges.begin();
     for (size_t i = 0, iend = ranges.size(); i != iend; ++i, ++iter) {
-        for (unsigned char j = iter->begin, jend = iter->end; j <= jend; ++j) {
+        for (size_t j = iter->begin, jend = iter->end; j <= jend; ++j) {
             charMap[j] = i;
         }
     }
@@ -56,7 +38,7 @@ PoorInterpreter::PoorInterpreter(Automaton::Ptr dfa) : charMap(CharMapSize, Char
             switch (transition->type) {
                 case Transition::Chars:
                     iter = ranges.begin();
-                    for (size_t j = 0, iend = ranges.size(); j != iend; ++j, ++iter) {
+                    for (size_t j = 0, jend = ranges.size(); j != jend; ++j, ++iter) {
                         if (transition->range.begin <= iter->begin && transition->range.end >= iter->end)
                             transitionTable[i][j] = stateMap[transition->target];
                     }
@@ -68,18 +50,22 @@ PoorInterpreter::PoorInterpreter(Automaton::Ptr dfa) : charMap(CharMapSize, Char
     }
 }
 
-
-bool PoorInterpreter::search(const char *input, Result *result, uint32_t offset) {
-    if (offset >= strlen(input))
-        return false;
-    while (input[offset]) {
-        if (match(input, result, offset++))
-            return true;
-    }
+bool PoorInterpreter::match(const char *input) {
+    Result result;
+    return searchHead(input, &result, 0) && result.length == strlen(input);
 }
 
-bool PoorInterpreter::match(const char *input, Result *result, uint32_t offset) {
-    if (offset >= strlen(input))
+bool PoorInterpreter::search(const char *input, Result *result, uint32_t offset) {
+    if (offset > strlen(input))
+        return false;
+    do {
+        if (searchHead(input, result, offset++))
+            return true;
+    } while (input[offset]);
+}
+
+bool PoorInterpreter::searchHead(const char *input, Result *result, uint32_t offset) {
+    if (offset > strlen(input))
         return false;
     input += offset;
     int32_t currentState = startState;
@@ -121,17 +107,22 @@ RichInterpreter::RichInterpreter(Automaton::Ptr _dfa) : dfa(_dfa) {
     }
 }
 
-bool RichInterpreter::search(const char *input, Result *result, uint32_t offset) {
-    if (offset >= strlen(input))
-        return false;
-    while (input[offset]) {
-        if (match(input, result, offset++))
-            return true;
-    }
+bool RichInterpreter::match(const char *input) {
+    Result result;
+    return searchHead(input, &result, 0) && result.length == strlen(input);
 }
 
-bool RichInterpreter::match(const char *input, Result *result, uint32_t offset) {
-    if (offset >= strlen(input))
+bool RichInterpreter::search(const char *input, Result *result, uint32_t offset) {
+    if (offset > strlen(input))
+        return false;
+    do {
+        if (searchHead(input, result, offset++))
+            return true;
+    } while (input[offset]);
+}
+
+bool RichInterpreter::searchHead(const char *input, Result *result, uint32_t offset) {
+    if (offset > strlen(input))
         return false;
     input += offset;
     const char *read = input;

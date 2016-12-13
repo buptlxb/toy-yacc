@@ -73,6 +73,12 @@ Transition::Ptr Automaton::getNop(State::Ptr from, State::Ptr to) {
     return n;
 }
 
+static std::string escape(std::string input) {
+    if (input == "\"")
+        return "#quot;";
+    return input;
+}
+
 std::ostream & Automaton::toMermaid(std::ostream &os) {
     std::map<State::Ptr, unsigned> dict;
     unsigned index = 0;
@@ -85,9 +91,9 @@ std::ostream & Automaton::toMermaid(std::ostream &os) {
             switch (trans->type) {
                 case Transition::Chars:
                     if (trans->range.begin == trans->range.end)
-                        os << repr(trans->range.begin);
+                        os << escape(repr(trans->range.begin));
                     else
-                        os << "[" << repr(trans->range.begin) << "-" << repr(trans->range.end) << "]";
+                        os << "[" << escape(repr(trans->range.begin)) << "-" << escape(repr(trans->range.end)) << "]";
                     break;
                 case Transition::Epsilon:
                     os << "epsilon";
@@ -263,12 +269,15 @@ std::vector<State::Set> split(State::Set states, const std::set<State::Set> &par
     ret[0].emplace(*i);
     for (++i; i != iend; ++i) {
         size_t index = 0;
-        for (auto transition : (*i)->outbounds) {
-            if (dict.find(transition) == dict.end() || dict[transition]->find(transition->target) == dict[transition]->end()) {
-                index = 1;
-                break;
+        if ((*i)->outbounds.size() == dict.size()) {
+            for (auto transition : (*i)->outbounds) {
+                if (dict.find(transition) == dict.end() || dict[transition]->find(transition->target) == dict[transition]->end()) {
+                    index = 1;
+                    break;
+                }
             }
-        }
+        } else
+            index = 1;
         if (index == ret.size())
             ret.resize(2);
         ret[index].emplace(*i);
@@ -286,7 +295,8 @@ Automaton::Ptr Hopcroft(Automaton::Ptr dfa) {
     }
     std::set<State::Set> partitions, saved;
     partitions.emplace(acceptedStates);
-    partitions.emplace(nonacceptedStates);
+    if (!nonacceptedStates.empty())
+        partitions.emplace(nonacceptedStates);
     while (partitions != saved) {
         std::swap(partitions, saved);
         partitions.clear();

@@ -25,7 +25,7 @@ struct Range {
     }
 };
 
-std::string repr(unsigned char c);
-
-std::string repr(const std::string &input);
+extern std::string repr(unsigned char c);
+extern std::string repr(const std::string &input);
+extern void marshalRange(Range<unsigned char> range, Range<unsigned char>::List &ranges);
 #endif

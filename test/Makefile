@@ -56,20 +56,26 @@ $(BUILD_DIR)/%.d: %.c
 	else echo "[\033[31mFAIL\033[m] \033[33m$<\033[m \033[36m->\033[m \033[33;1m$@\033[m"; exit -1; fi;
 
 % : %.cpp
+	@if [ ! -f ${USER_DIR}/toy-yacc.a ]; then \
+		echo "[\033[31mTEST\033[m] \033[33m${USER_DIR}/toy-yacc.a not exists\033[m"; exit -1; fi;
+	@if [ ! -d $(TARGET_DIR) ]; then \
+	mkdir $(TARGET_DIR); fi;
 	@if \
 	$(CXX) ${CXXFLAGS} ${CPPFLAGS} ${INCLUDE} $< ${USER_DIR}/toy-yacc.a ${GTEST_DIR}/gtest_main.a -o $(TARGET_DIR)/$@; \
-	then echo "[\033[32mCXX \033[m] \033[33m$<\033[m \033[36m->\033[m \033[33;1m$(BUILD_DIR)/$@\033[m"; \
-	else echo "[\033[31mFAIL\033[m] \033[33m$<\033[m \033[36m->\033[m \033[33;1m$(BUILD_DIR)/$@\033[m"; exit -1; fi;
+	then echo "[\033[32mCXX \033[m] \033[33m$<\033[m \033[36m->\033[m \033[33;1m$(TARGET_DIR)/$@\033[m"; \
+	else echo "[\033[31mFAIL\033[m] \033[33m$<\033[m \033[36m->\033[m \033[33;1m$(TARGET_DIR)/$@\033[m"; exit -1; fi;
 
 % : %.c
+	@if [ ! -f ${USER_DIR}/toy-yacc.a ]; then \
+		echo "[\033[31mTEST\033[m] \033[33m${USER_DIR}/toy-yacc.a\033[m"; exit -1; fi;
 	@if \
 	$(CC) ${CFLAGS} ${INCLUDE} $< ${USER_DIR}/toy-yacc.a ${GTEST_DIR}/gtest_main.a -o $(BUILD_DIR)/$@; \
-	then echo "[\033[32mCC  \033[m] \033[33m$<\033[m \033[36m->\033[m \033[33;1m$(BUILD_DIR)/$@\033[m"; \
-	else echo "[\033[31mFAIL\033[m] \033[33m$<\033[m \033[36m->\033[m \033[33;1m$(BUILD_DIR)/$@\033[m"; exit -1; fi;
+	then echo "[\033[32mCC  \033[m] \033[33m$<\033[m \033[36m->\033[m \033[33;1m$(TARGET_DIR)/$@\033[m"; \
+	else echo "[\033[31mFAIL\033[m] \033[33m$<\033[m \033[36m->\033[m \033[33;1m$(TARGET_DIR)/$@\033[m"; exit -1; fi;
 
 clean:
-	@echo "[\033[32mCLEAN\033[m] \033[33m$(TARGET) $(BUILD_DIR)\033[m"
-	@rm -rf $(TARGET) $(BUILD_DIR)
+	@echo "[\033[32mCLEAN\033[m] \033[33m$(TARGET_DIR) $(BUILD_DIR)\033[m"
+	@rm -rf $(TARGET_DIR) $(BUILD_DIR)
 
 ${GTEST_DIR} :
 	$(MAKE) -C $@

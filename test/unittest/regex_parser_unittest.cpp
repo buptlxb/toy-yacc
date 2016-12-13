@@ -19,10 +19,6 @@
 // examples of such macros.  For a complete list, see gtest.h.
 
 
-const char *input;
-
-typedef Expression::Ptr (*Parser)(const char *&);
-
 #define REGEX_ASSERT2(str, expect) do { \
     const char *input = str; EXPECT_EQ(parseChar(input), expect); \
 } while (0)

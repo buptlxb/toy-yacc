@@ -21,14 +21,14 @@ int main(int argc, char *argv[])
     ofs.close();
     regex->setNormalize();
     auto automaton = regex->generateEpsilonNfa();
-    //automaton->toMermaid(std::cout) << std::endl;
-    auto dfa = powerset(automaton, richEpsilonChecker);
-    //dfa->toMermaid(std::cout) << std::endl;
+    automaton->toMermaid(std::cout) << std::endl;
+    auto dfa = powerset(automaton, poorEpsilonChecker);
+    dfa->toMermaid(std::cout) << std::endl;
     dfa = Hopcroft(dfa);
-    //dfa->toMermaid(std::cout) << std::endl;
-    RichInterpreter *iterpreter = new RichInterpreter(dfa);
+    dfa->toMermaid(std::cout) << std::endl;
+    PoorInterpreter *iterpreter = new PoorInterpreter(dfa);
     for (int i = 2; i < argc; ++i) {
-        RichInterpreter::Result result;
+        PoorInterpreter::Result result;
         bool match = iterpreter->search(argv[i], &result);
         std::cout << "Case #" << i-1 << ": " << std::boolalpha << match << "(" << result.start << ", " << result.length << ", " << result.terminateState << ", " << result.acceptedState << ")" << std::endl;
     }
