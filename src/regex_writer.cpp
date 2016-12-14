@@ -96,5 +96,5 @@ RegexNode rW() {
 }
 
 RegexNode rAnyChar() {
-    return rR('\x00', '\xFF');
+    return rR('\x01', '\xFF');
 }

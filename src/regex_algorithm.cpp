@@ -180,11 +180,11 @@ void SetNormalizationVisitor::visit(SetExpression *expression, Range<unsigned ch
                 posit = rebuild(posit, i->end+1, end);
             }
             end = i->begin - 1;
-            if (i->begin == '\x00')
+            if (i->begin == '\x01')
                 break;
         }
-        if (end != '\xff')
-            posit = rebuild(posit, '\x00', end);
+        if (end != '\x00')
+            posit = rebuild(posit, '\x01', end);
 
         expression->isComplementary = false;
         expression->expression = posit;

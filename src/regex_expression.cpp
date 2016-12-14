@@ -165,7 +165,7 @@ Expression::Ptr parseElementaryRE(const char *&input) {
     else if (isChar(input, '$'))    // <eos>
         return EndExpression::Ptr(new EndExpression);
     else if (isChar(input, '.'))    // <any>
-        return Expression::Ptr(new CharRangeExpression('\x00', '\xFF'));
+        return Expression::Ptr(new CharRangeExpression('\x01', '\xFF'));
     else if (isChar(input, '[')) {  // <set>
         shared_ptr<SetExpression> expr(new SetExpression);
         expr->isComplementary = isChar(input, '^');

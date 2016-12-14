@@ -22,13 +22,13 @@ int main(int argc, char *argv[])
     regex->setNormalize();
     auto automaton = regex->generateEpsilonNfa();
     automaton->toMermaid(std::cout) << std::endl;
-    auto dfa = powerset(automaton, poorEpsilonChecker);
+    auto dfa = powerset(automaton, richEpsilonChecker);
     dfa->toMermaid(std::cout) << std::endl;
     dfa = Hopcroft(dfa);
     dfa->toMermaid(std::cout) << std::endl;
-    PoorInterpreter *iterpreter = new PoorInterpreter(dfa);
+    RichInterpreter *iterpreter = new RichInterpreter(dfa);
     for (int i = 2; i < argc; ++i) {
-        PoorInterpreter::Result result;
+        RichInterpreter::Result result;
         bool match = iterpreter->search(argv[i], &result);
         std::cout << "Case #" << i-1 << ": " << std::boolalpha << match << "(" << result.start << ", " << result.length << ", " << result.terminateState << ", " << result.acceptedState << ")" << std::endl;
     }

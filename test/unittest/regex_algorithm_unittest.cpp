@@ -30,7 +30,7 @@ TEST(RegexAlgorithm, SetNormalization) {
     SET_NORMALIZATION_ASSERT("[a-g][h-n]", rC('a', 'g') + rC('h', 'n'));
     SET_NORMALIZATION_ASSERT("[a-gg-n]", rC('a', 'n'));
     SET_NORMALIZATION_ASSERT("[0-21-32-4]", rC('0', '4'));
-    SET_NORMALIZATION_ASSERT("[^C-X][A-Z]", (rC('\x00', 'C'-1) <<= rC('X'+1, '\xFF')) + rC('A', 'Z'));
+    SET_NORMALIZATION_ASSERT("[^C-X][A-Z]", (rC('\x01', 'C'-1) <<= rC('X'+1, '\xFF')) + rC('A', 'Z'));
     SET_NORMALIZATION_ASSERT("[0-21-32-46-76-9]", rC('0', '4') <<= rC('6', '9'));
 }
 
