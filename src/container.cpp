@@ -60,6 +60,7 @@ void marshalRange(Range<unsigned char> range, Range<unsigned char>::List &ranges
         } else if (range.end < i->end) {
             i->begin = range.end+1;
             i = ranges.emplace(i, range.begin, range.end);
+            return;
         } else
             return;
     }   

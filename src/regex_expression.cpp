@@ -1,4 +1,5 @@
 #include <sstream>
+#include <iostream>
 #include "regex_expression.h"
 #include "regex_exception.h"
 #include "regex_algorithm.h"
@@ -13,8 +14,12 @@ void Expression::graphviz(std::ostream &os) {
     os << "}" << std::endl;
 }
 
-void Expression::setNormalize() {
-    SetNormalizationVisitor().invoke(this, nullptr);
+void Expression::setNormalize(Range<unsigned char>::List *unifiedRanges) {
+    SetNormalizationVisitor().invoke(this, unifiedRanges);
+}
+
+void Expression::setUnify(Range<unsigned char>::List unifiedRanges) {
+    SetUnificationVisitor().invoke(this, &unifiedRanges);
 }
 
 Automaton::Ptr Expression::generateEpsilonNfa() {

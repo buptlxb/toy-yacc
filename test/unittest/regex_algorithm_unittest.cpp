@@ -21,8 +21,18 @@
 
 #define SET_NORMALIZATION_ASSERT(str, node) { \
     const char *input = str; \
+    Range<unsigned char>::List unifiedRanges; \
     auto  regex = parseRegex(input); \
-    regex->setNormalize(); \
+    regex->setNormalize(&unifiedRanges); \
+    EXPECT_TRUE(regex->equals((node).expression.get())); \
+} while (0)
+
+#define SET_UNIFICATION_ASSERT(str, node) { \
+    const char *input = str; \
+    Range<unsigned char>::List unifiedRanges; \
+    auto  regex = parseRegex(input); \
+    regex->setNormalize(&unifiedRanges); \
+    regex->setUnify(unifiedRanges); \
     EXPECT_TRUE(regex->equals((node).expression.get())); \
 } while (0)
 
@@ -32,6 +42,16 @@ TEST(RegexAlgorithm, SetNormalization) {
     SET_NORMALIZATION_ASSERT("[0-21-32-4]", rC('0', '4'));
     SET_NORMALIZATION_ASSERT("[^C-X][A-Z]", (rC('\x01', 'C'-1) <<= rC('X'+1, '\xFF')) + rC('A', 'Z'));
     SET_NORMALIZATION_ASSERT("[0-21-32-46-76-9]", rC('0', '4') <<= rC('6', '9'));
+}
+
+TEST(RegexAlgorithm, SetUnification) {
+    SET_UNIFICATION_ASSERT("[a-g][h-n]", rC('a', 'g') + rC('h', 'n'));
+    SET_UNIFICATION_ASSERT("[a-gg-n]", rC('a', 'n'));
+    SET_UNIFICATION_ASSERT("[0-21-32-4]", rC('0', '4'));
+    SET_UNIFICATION_ASSERT("[^C-X][A-Z]", (rC('\x01', '@') <<= rC('A', 'B') <<= rC('Y', 'Z') <<= rC('[', '\xFF')) + (rC('A', 'B') <<= rC('C', 'X') <<= rC('Y', 'Z')));
+    SET_UNIFICATION_ASSERT("[0-21-32-46-76-9]", rC('0', '4') <<= rC('6', '9'));
+    SET_UNIFICATION_ASSERT("[a-b]|(ax)", (rC('a', 'a')<<=rC('b', 'b')) | (rR('a', 'a') + rR('x', 'x')));
+    SET_UNIFICATION_ASSERT("(ax)|[a-b]", (rR('a', 'a') + rR('x', 'x')) | (rC('a', 'a')<<=rC('b', 'b')));
 }
 
 // Step 3. Call RUN_ALL_TESTS() in main().

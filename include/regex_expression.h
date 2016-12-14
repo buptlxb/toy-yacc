@@ -13,7 +13,8 @@ struct Expression {
     typedef std::shared_ptr<Expression> Ptr;
     bool equals(Expression *);
     void graphviz(std::ostream &os);
-    void setNormalize();
+    void setNormalize(Range<unsigned char>::List *unifiedRanges);
+    void setUnify(Range<unsigned char>::List unifiedRanges);
     Automaton::Ptr generateEpsilonNfa();
     virtual void accept(Visitor &) = 0;
 };

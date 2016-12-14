@@ -138,6 +138,7 @@ public:
 };
 
 class SetNormalizationVisitor : public RegexVisitor<void, Range<unsigned char>::List *> {
+protected:
     Expression::Ptr rebuild(Expression::Ptr, unsigned char begin, unsigned char end);
 public:
     /*virtual*/ void visit(CharRangeExpression *expression, Range<unsigned char>::List *);
@@ -147,6 +148,11 @@ public:
     /*virtual*/ void visit(SetExpression *expression, Range<unsigned char>::List *);
     /*virtual*/ void visit(ConcatenationExpression *expression, Range<unsigned char>::List *);
     /*virtual*/ void visit(SelectExpression *expression, Range<unsigned char>::List *);
+};
+
+class SetUnificationVisitor : public SetNormalizationVisitor {
+public:
+    /*virtual*/ void visit(SetExpression *expression, Range<unsigned char>::List *);
 };
 
 class EpsilonNfaVisitor : public RegexVisitor<EpsilonNfa, Automaton *> {

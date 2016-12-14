@@ -157,17 +157,15 @@ Expression::Ptr SetNormalizationVisitor::rebuild(Expression::Ptr posit, unsigned
     return posit;
 }
 
-void SetNormalizationVisitor::visit(CharRangeExpression *expression, Range<unsigned char>::List *ranges) {
-    if (!ranges)
-        return;
-    marshalRange(expression->range, *ranges);
+void SetNormalizationVisitor::visit(CharRangeExpression *expression, Range<unsigned char>::List *unifiedRanges) {
+    marshalRange(expression->range, *unifiedRanges);
 }
 void SetNormalizationVisitor::visit(BeginExpression *expression, Range<unsigned char>::List *) { }
 void SetNormalizationVisitor::visit(EndExpression *expression, Range<unsigned char>::List *) { }
-void SetNormalizationVisitor::visit(RepeatExpression *expression, Range<unsigned char>::List *) {
-    invoke(expression->expression, nullptr);
+void SetNormalizationVisitor::visit(RepeatExpression *expression, Range<unsigned char>::List *unifiedRanges) {
+    invoke(expression->expression, unifiedRanges);
 }
-void SetNormalizationVisitor::visit(SetExpression *expression, Range<unsigned char>::List *) {
+void SetNormalizationVisitor::visit(SetExpression *expression, Range<unsigned char>::List *unifiedRanges) {
     if (!expression->expression)
         return;
     Range<unsigned char>::List ranges;
@@ -201,14 +199,31 @@ void SetNormalizationVisitor::visit(SetExpression *expression, Range<unsigned ch
         posit = rebuild(posit, begin, end);
         expression->expression = posit;
     }
+    invoke(expression->expression, unifiedRanges);
 }
-void SetNormalizationVisitor::visit(ConcatenationExpression *expression, Range<unsigned char>::List *) {
-    invoke(expression->left, nullptr);
-    invoke(expression->right, nullptr);
+void SetNormalizationVisitor::visit(ConcatenationExpression *expression, Range<unsigned char>::List *unifiedRanges) {
+    invoke(expression->left, unifiedRanges);
+    invoke(expression->right, unifiedRanges);
 }
-void SetNormalizationVisitor::visit(SelectExpression *expression, Range<unsigned char>::List *ranges) {
-    invoke(expression->left, ranges);
-    invoke(expression->right, ranges);
+void SetNormalizationVisitor::visit(SelectExpression *expression, Range<unsigned char>::List *unifiedRanges) {
+    invoke(expression->left, unifiedRanges);
+    invoke(expression->right, unifiedRanges);
+}
+
+void SetUnificationVisitor::visit(SetExpression *expression, Range<unsigned char>::List *unifiedRanges) {
+    if (!expression->expression)
+        return;
+    assertm(!expression->isComplementary, "Unable to apply SetUnificationVisitor to negative SetExpression.\nPlease class setNormalize() first.");
+    Range<unsigned char>::List ranges;
+    invoke(expression->expression, &ranges);
+    Expression::Ptr posit;
+    for (auto i = ranges.rbegin(), iend = ranges.rend(); i != iend; ++i) {
+        for (auto j = unifiedRanges->rbegin(), jend = unifiedRanges->rend(); j != jend; ++j) {
+            if (i->begin <= j->begin && j->end <= i->end)
+                posit = rebuild(posit, j->begin, j->end);
+        }
+    }
+    expression->expression = posit;
 }
 
 EpsilonNfa EpsilonNfaVisitor::connect(EpsilonNfa a, EpsilonNfa b, Automaton *automaton) {
@@ -290,7 +305,7 @@ EpsilonNfa EpsilonNfaVisitor::visit(RepeatExpression *expression, Automaton *aut
 }
 
 EpsilonNfa EpsilonNfaVisitor::visit(SetExpression *expression, Automaton *automaton) {
-    assertm(!expression->isComplementary, "Unable to apply EpsilonNfaVisitor to negative SetExpression.\nPlease call positize() first.");
+    assertm(!expression->isComplementary, "Unable to apply EpsilonNfaVisitor to negative SetExpression.\nPlease call setNormalize() first.");
     if (expression->expression)
         return invoke(expression->expression, automaton);
     EpsilonNfa nfa;

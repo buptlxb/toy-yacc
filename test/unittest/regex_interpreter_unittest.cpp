@@ -61,7 +61,7 @@ string badCharConst = "('"+cconstChar+"[^'\\n]+')|('')|('"+badEscape+"[^'\\n]*')
 string stringChar = "([^\"\\\\\\n]|"+escapeSequence+')';
 string stringLiteral = "\""+stringChar+"*\"";
 string wstringLiteral = "L"+stringLiteral;
-string bad_stringLiteral = "\""+stringChar+"*?"+badEscape+stringChar+"*\"";
+string badStringLiteral = "\""+stringChar+"*?"+badEscape+stringChar+"*\"";
 
 // floating constants (K&R2: A.2.5.3)
 string exponentPart = "([eE][-+]?[0-9]+)";
@@ -81,7 +81,9 @@ string hexFloatingConstant = "("+hexPrefix+"("+hexDigits+"|"+hexFractionalConsta
 
 PoorInterpreter::Ptr initPoorInterpreter(string re) {
     auto  regex = parseRegex(re);
-    regex->setNormalize();
+    Range<unsigned char>::List unifiedRanges;
+    regex->setNormalize(&unifiedRanges);
+    regex->setUnify(unifiedRanges);
     auto nfa = regex->generateEpsilonNfa();
     auto dfa = powerset(nfa, poorEpsilonChecker);
     auto mdfa = Hopcroft(dfa);
@@ -131,16 +133,6 @@ TEST(PoorInterpreter, BinDigits) {
     POOR_MATCH_ASSERT("0123456789", false);
     POOR_SEARCH_ASSERT("0123456789", 0, 2);
     POOR_MATCH_ASSERT("001010101", true);
-}
-
-// fractionalConstant = "([0-9]*\\.[0-9]+)|([0-9]+\\.)";
-TEST(PoorInterpreter, FractionalConstant) {
-    auto interpreter = initPoorInterpreter(fractionalConstant);
-    POOR_SEARCH_ASSERT("0.1234", 0, 6);
-    POOR_SEARCH_ASSERT("a0123.1", 1, 6);
-    POOR_SEARCH_ASSERT("123.", 0, 4);
-    POOR_SEARCH_ASSERT(".123", 0, 4);
-    EXPECT_FALSE(interpreter->search(".", nullptr));
 }
 
 // integerSuffixOpt = "(([uU]ll)|([uU]LL)|(ll[uU]?)|(LL[uU]?)|([uU][lL])|([lL][uU]?)|[uU])?";
@@ -310,7 +302,7 @@ TEST(PoorInterpreter, CconstChar) {
 // charConst = "'"+cconstChar+"'";
 TEST(PoorInterpreter, CharConst) {
     auto interpreter = initPoorInterpreter(charConst);
-    //POOR_MATCH_ASSERT("'\\x00'", true); // beyond poor interpreter
+    POOR_MATCH_ASSERT("'\\x00'", true); // beyond poor interpreter
     POOR_MATCH_ASSERT("'a'", true);
     POOR_MATCH_ASSERT("'\\n'", true);
 }
@@ -324,12 +316,116 @@ TEST(PoorInterpreter, WcharConst) {
 // TEST(RichInterpreter, XXXX)
 
 // badCharConst = "('"+cconstChar+"[^'\\n]+')|('')|('"+badEscape+"[^'\\n]*')";
-TEST(PoorInterpreter, badCharConst) {
+TEST(PoorInterpreter, BadCharConst) {
     auto interpreter = initPoorInterpreter(badCharConst);
     POOR_MATCH_ASSERT("'ab'", true);
     POOR_MATCH_ASSERT("'\\8a'", true);
     POOR_MATCH_ASSERT("'a'", false);
     POOR_MATCH_ASSERT("'\\n'", false);
+}
+
+// stringChar = "([^\"\\\\\\n]|"+escapeSequence+')';
+TEST(PoorInterpreter, StringChar) {
+    auto interpreter = initPoorInterpreter(stringChar);
+    POOR_MATCH_ASSERT("\\\\", true);
+    POOR_MATCH_ASSERT("\\^", true);
+    POOR_MATCH_ASSERT("\\x0", true);
+    POOR_MATCH_ASSERT("\\xbf", true);
+    POOR_MATCH_ASSERT("\\123", true);
+}
+// stringLiteral = "\""+stringChar+"*\"";
+TEST(PoorInterpreter, StringLiteral) {
+    auto interpreter = initPoorInterpreter(stringLiteral);
+    POOR_MATCH_ASSERT("\"\\\\\"", true);
+    POOR_MATCH_ASSERT("\"buptlxb\"", true);
+}
+// wstringLiteral = "L"+stringLiteral;
+TEST(PoorInterpreter, WstringLiteral) {
+    auto interpreter = initPoorInterpreter(wstringLiteral);
+    POOR_MATCH_ASSERT("L\"\\\\\"", true);
+    POOR_MATCH_ASSERT("L\"buptlxb\"", true);
+}
+// badStringLiteral = "\""+stringChar+"*?"+badEscape+stringChar+"*\"";
+// TEST(RichInterpreter, XXXX)
+
+// exponentPart = "([eE][-+]?[0-9]+)";
+TEST(PoorInterpreter, ExponentPart) {
+    auto interpreter = initPoorInterpreter(exponentPart);
+    POOR_MATCH_ASSERT("e1", true);
+    POOR_MATCH_ASSERT("E2", true);
+    POOR_MATCH_ASSERT("e+123", true);
+    POOR_MATCH_ASSERT("e-123", true);
+    POOR_MATCH_ASSERT("E+012", true);
+    POOR_MATCH_ASSERT("E-012", true);
+}
+// fractionalConstant = "([0-9]*\\.[0-9]+)|([0-9]+\\.)";
+TEST(PoorInterpreter, FractionalConstant) {
+    auto interpreter = initPoorInterpreter(fractionalConstant);
+    POOR_MATCH_ASSERT(".0", true);
+    POOR_MATCH_ASSERT("0.0", true);
+    POOR_MATCH_ASSERT(".01", true);
+    POOR_MATCH_ASSERT("1.10", true);
+    POOR_MATCH_ASSERT("0.", true);
+    POOR_MATCH_ASSERT("123.", true);
+}
+// floatingConstant = "(((("+fractionalConstant+")"+exponentPart+"?)|([0-9]+"+exponentPart+"))[FfLl]?)";
+TEST(PoorInterpreter, FloatingConstant) {
+    auto interpreter = initPoorInterpreter(floatingConstant);
+    POOR_MATCH_ASSERT(".0", true);
+    POOR_MATCH_ASSERT("0.0", true);
+    POOR_MATCH_ASSERT(".01", true);
+    POOR_MATCH_ASSERT("1.10", true);
+    POOR_MATCH_ASSERT("0.", true);
+    POOR_MATCH_ASSERT("123.", true);
+    POOR_MATCH_ASSERT(".0e1", true);
+    POOR_MATCH_ASSERT("0.0E2", true);
+    POOR_MATCH_ASSERT(".01e+123", true);
+    POOR_MATCH_ASSERT("1.10e-123", true);
+    POOR_MATCH_ASSERT("0.E+012", true);
+    POOR_MATCH_ASSERT("123.E-012", true);
+    POOR_MATCH_ASSERT(".0F", true);
+    POOR_MATCH_ASSERT("0.0f", true);
+    POOR_MATCH_ASSERT(".01L", true);
+    POOR_MATCH_ASSERT("1.10l", true);
+}
+// binaryExponentPart = "([pP][+-]?[0-9]+)";
+TEST(PoorInterpreter, BinaryExponentPart) {
+    auto interpreter = initPoorInterpreter(binaryExponentPart);
+    POOR_MATCH_ASSERT("p0", true);
+    POOR_MATCH_ASSERT("p123", true);
+    POOR_MATCH_ASSERT("p+0", true);
+    POOR_MATCH_ASSERT("p-0", true);
+    POOR_MATCH_ASSERT("p+123", true);
+    POOR_MATCH_ASSERT("P0", true);
+    POOR_MATCH_ASSERT("P123", true);
+    POOR_MATCH_ASSERT("P+0", true);
+    POOR_MATCH_ASSERT("P-0", true);
+    POOR_MATCH_ASSERT("P+123", true);
+}
+// hexFractionalConstant = "((("+hexDigits+")?\\."+hexDigits+")|("+hexDigits+"\\.))";
+TEST(PoorInterpreter, HexFractionalConstant) {
+    auto interpreter = initPoorInterpreter(hexFractionalConstant);
+    POOR_MATCH_ASSERT("badbeef.0123", true);
+    POOR_MATCH_ASSERT("0123.badbeef", true);
+    POOR_MATCH_ASSERT("badbeef.", true);
+    POOR_MATCH_ASSERT("0123.", true);
+    POOR_MATCH_ASSERT("123badbeef.badbeef123", true);
+}
+// hexFloatingConstant = "("+hexPrefix+"("+hexDigits+"|"+hexFractionalConstant+")"+binaryExponentPart+"[FfLl]?)";
+TEST(PoorInterpreter, HexFloatingConstant) {
+    auto interpreter = initPoorInterpreter(hexFloatingConstant);
+    POOR_MATCH_ASSERT("0xbadbeep0f", true);
+    POOR_MATCH_ASSERT("0xbadbeef.213P0", true);
+    POOR_MATCH_ASSERT("0xbadbeef.213p+0F", true);
+    POOR_MATCH_ASSERT("0xbadbeef.213p-0f", true);
+    POOR_MATCH_ASSERT("0xbadbeef.213p+123l", true);
+    POOR_MATCH_ASSERT("0xbadbeef.213P-123L", true);
+    POOR_MATCH_ASSERT("0Xbadbeep0f", true);
+    POOR_MATCH_ASSERT("0Xbadbeef.213P0", true);
+    POOR_MATCH_ASSERT("0Xbadbeef.213p+0F", true);
+    POOR_MATCH_ASSERT("0Xbadbeef.213p-0f", true);
+    POOR_MATCH_ASSERT("0Xbadbeef.213p+123l", true);
+    POOR_MATCH_ASSERT("0Xbadbeef.213P-123L", true);
 }
 
 // Step 3. Call RUN_ALL_TESTS() in main().
