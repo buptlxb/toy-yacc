@@ -255,7 +255,7 @@ EpsilonNfa EpsilonNfaVisitor::visit(EndExpression *expression, Automaton *automa
     EpsilonNfa nfa;
     nfa.start = automaton->getState();
     nfa.finish = automaton->getState();
-    automaton->getBeginString(nfa.start, nfa.finish);
+    automaton->getEndString(nfa.start, nfa.finish);
     return nfa;
 }
 

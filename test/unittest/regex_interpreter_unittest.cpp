@@ -323,8 +323,6 @@ TEST(PoorInterpreter, WcharConst) {
     POOR_MATCH_ASSERT("L'a'", true);
     POOR_MATCH_ASSERT("L'\\n'", true);
 }
-// unmatchedQuote = "('"+cconstChar+"*\\n)|('"+cconstChar+"*$)";
-// TEST(RichInterpreter, XXXX)
 
 // badCharConst = "('"+cconstChar+"[^'\\n]+')|('')|('"+badEscape+"[^'\\n]*')";
 TEST(PoorInterpreter, BadCharConst) {
@@ -356,8 +354,6 @@ TEST(PoorInterpreter, WstringLiteral) {
     POOR_MATCH_ASSERT("L\"\\\\\"", true);
     POOR_MATCH_ASSERT("L\"buptlxb\"", true);
 }
-// badStringLiteral = "\""+stringChar+"*?"+badEscape+stringChar+"*\"";
-// TEST(RichInterpreter, XXXX)
 
 // exponentPart = "([eE][-+]?[0-9]+)";
 TEST(PoorInterpreter, ExponentPart) {
@@ -673,7 +669,15 @@ TEST(RichInterpreter, WcharConst) {
     RICH_MATCH_ASSERT("L'\\n'", true);
 }
 // unmatchedQuote = "('"+cconstChar+"*\\n)|('"+cconstChar+"*$)";
-// TEST(RichInterpreter, XXXX)
+TEST(RichInterpreter, UnmatchedQuote) {
+    auto interpreter = initRichInterpreter(unmatchedQuote);
+    RICH_MATCH_ASSERT("'\n", true);
+    RICH_MATCH_ASSERT("'a\n", true);
+    RICH_MATCH_ASSERT("'\\x00\n", true);
+    RICH_MATCH_ASSERT("'", true);
+    RICH_MATCH_ASSERT("'a", true);
+    RICH_MATCH_ASSERT("'\\x00", true);
+}
 
 // badCharConst = "('"+cconstChar+"[^'\\n]+')|('')|('"+badEscape+"[^'\\n]*')";
 TEST(RichInterpreter, BadCharConst) {
@@ -706,7 +710,10 @@ TEST(RichInterpreter, WstringLiteral) {
     RICH_MATCH_ASSERT("L\"buptlxb\"", true);
 }
 // badStringLiteral = "\""+stringChar+"*?"+badEscape+stringChar+"*\"";
-// TEST(RichInterpreter, XXXX)
+TEST(RichInterpreter, BadStringLiteral) {
+    auto interpreter = initRichInterpreter(badStringLiteral);
+    RICH_MATCH_ASSERT("\"abc\\n\\8abc\"", true);
+}
 
 // exponentPart = "([eE][-+]?[0-9]+)";
 TEST(RichInterpreter, ExponentPart) {
