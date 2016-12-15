@@ -23,6 +23,17 @@ using std::string;
     EXPECT_EQ(interpreter->match(input), expect); \
 } while (0)
 
+#define RICH_SEARCH_ASSERT(input, begin, len) { \
+    RichInterpreter::Result match; \
+    EXPECT_TRUE(interpreter->search(input, &match)); \
+    EXPECT_EQ(match.start, begin); \
+    EXPECT_EQ(match.length, len); \
+} while (0)
+
+#define RICH_MATCH_ASSERT(input, expect) { \
+    EXPECT_EQ(interpreter->match(input), expect); \
+} while (0)
+
 // valid C identifiers (K&R2: A.2.3), plus '$' (supported by some compilers)
 string identifier = "[a-zA-Z_$][0-9a-zA-Z_$]*";
 string hexPrefix = "0[xX]";
@@ -428,6 +439,354 @@ TEST(PoorInterpreter, HexFloatingConstant) {
     POOR_MATCH_ASSERT("0Xbadbeef.213P-123L", true);
 }
 
+RichInterpreter::Ptr initRichInterpreter(string re) {
+    auto  regex = parseRegex(re);
+    Range<unsigned char>::List unifiedRanges;
+    regex->setNormalize(&unifiedRanges);
+    regex->setUnify(unifiedRanges);
+    auto nfa = regex->generateEpsilonNfa();
+    auto dfa = powerset(nfa, richEpsilonChecker);
+    auto mdfa = Hopcroft(dfa);
+    //mdfa->toMermaid(std::cout);
+    return RichInterpreter::Ptr(new RichInterpreter(mdfa));
+}
+
+// identifier = "[a-zA-Z_$][0-9a-zA-Z_$]*";
+TEST(RichInterpreter, Identifier) {
+    auto interpreter = initRichInterpreter(identifier);
+    RICH_SEARCH_ASSERT("abc", 0, 3);
+    RICH_SEARCH_ASSERT("a101", 0, 4);
+    EXPECT_FALSE(interpreter->search("10", nullptr));
+}
+
+// hexPrefix = "0[xX]";
+TEST(RichInterpreter, HexPrefix) {
+    auto interpreter = initRichInterpreter(hexPrefix);
+    RICH_MATCH_ASSERT("0x", true);
+    RICH_MATCH_ASSERT("0X", true);
+    EXPECT_FALSE(interpreter->search("0", nullptr));
+}
+
+//string hexDigits = "[0-9a-fA-F]+";
+TEST(RichInterpreter, HexDigits) {
+    auto interpreter = initRichInterpreter(hexDigits);
+    RICH_MATCH_ASSERT("deadcode", false);
+    RICH_MATCH_ASSERT("badbeef", true);
+    RICH_MATCH_ASSERT("0123456789", true);
+    RICH_MATCH_ASSERT("DEADCODE", false);
+    RICH_MATCH_ASSERT("BADBEEF", true);
+    RICH_MATCH_ASSERT("0123456789ABCDEF", true);
+}
+
+// binPrefix = "0[bB]";
+TEST(RichInterpreter, BinPrefix) {
+    auto interpreter = initRichInterpreter(binPrefix);
+    RICH_MATCH_ASSERT("0b", true);
+    RICH_MATCH_ASSERT("0B", true);
+    RICH_MATCH_ASSERT("0x", false);
+    RICH_MATCH_ASSERT("b", false);
+}
+
+// binDigits = "[01]+";
+TEST(RichInterpreter, BinDigits) {
+    auto interpreter = initRichInterpreter(binDigits);
+    RICH_MATCH_ASSERT("0123456789", false);
+    RICH_SEARCH_ASSERT("0123456789", 0, 2);
+    RICH_MATCH_ASSERT("001010101", true);
+}
+
+// integerSuffixOpt = "(([uU]ll)|([uU]LL)|(ll[uU]?)|(LL[uU]?)|([uU][lL])|([lL][uU]?)|[uU])?";
+TEST(RichInterpreter, IntegerSuffixOpt) {
+    auto interpreter = initRichInterpreter(integerSuffixOpt);
+    RICH_MATCH_ASSERT("ull", true);
+    RICH_MATCH_ASSERT("Ull", true);
+    RICH_MATCH_ASSERT("uLL", true);
+    RICH_MATCH_ASSERT("ULL", true);
+    RICH_MATCH_ASSERT("llu", true);
+    RICH_MATCH_ASSERT("llU", true);
+    RICH_MATCH_ASSERT("LLu", true);
+    RICH_MATCH_ASSERT("LLU", true);
+    RICH_MATCH_ASSERT("ul", true);
+    RICH_MATCH_ASSERT("uL", true);
+    RICH_MATCH_ASSERT("Ul", true);
+    RICH_MATCH_ASSERT("UL", true);
+    RICH_MATCH_ASSERT("l", true);
+    RICH_MATCH_ASSERT("lu", true);
+    RICH_MATCH_ASSERT("lU", true);
+    RICH_MATCH_ASSERT("L", true);
+    RICH_MATCH_ASSERT("Lu", true);
+    RICH_MATCH_ASSERT("LU", true);
+    RICH_MATCH_ASSERT("u", true);
+    RICH_MATCH_ASSERT("U", true);
+    RICH_MATCH_ASSERT("", true);
+}
+
+// decimalConstant = "(0"+integerSuffixOpt+")|([1-9][0-9]*"+integerSuffixOpt+")";
+TEST(RichInterpreter, DecimalConstant) {
+    auto interpreter = initRichInterpreter(decimalConstant);
+    RICH_MATCH_ASSERT("0ull", true);
+    RICH_MATCH_ASSERT("0Ull", true);
+    RICH_MATCH_ASSERT("0uLL", true);
+    RICH_MATCH_ASSERT("0ULL", true);
+    RICH_MATCH_ASSERT("0llu", true);
+    RICH_MATCH_ASSERT("0llU", true);
+    RICH_MATCH_ASSERT("0LLu", true);
+    RICH_MATCH_ASSERT("0LLU", true);
+    RICH_MATCH_ASSERT("0ul", true);
+    RICH_MATCH_ASSERT("0uL", true);
+    RICH_MATCH_ASSERT("0Ul", true);
+    RICH_MATCH_ASSERT("0UL", true);
+    RICH_MATCH_ASSERT("0l", true);
+    RICH_MATCH_ASSERT("0lu", true);
+    RICH_MATCH_ASSERT("0lU", true);
+    RICH_MATCH_ASSERT("0L", true);
+    RICH_MATCH_ASSERT("0Lu", true);
+    RICH_MATCH_ASSERT("0LU", true);
+    RICH_MATCH_ASSERT("0u", true);
+    RICH_MATCH_ASSERT("0U", true);
+    RICH_MATCH_ASSERT("10ull", true);
+    RICH_MATCH_ASSERT("01ull", false);
+    RICH_MATCH_ASSERT("123456789ull", true);
+    RICH_MATCH_ASSERT("123456789", true);
+}
+// octalConstant = "0[0-7]*"+integerSuffixOpt;
+TEST(RichInterpreter, OctalConstant) {
+    auto interpreter = initRichInterpreter(octalConstant);
+    RICH_MATCH_ASSERT("01ull", true);
+    RICH_MATCH_ASSERT("01Ull", true);
+    RICH_MATCH_ASSERT("01uLL", true);
+    RICH_MATCH_ASSERT("01ULL", true);
+    RICH_MATCH_ASSERT("01llu", true);
+    RICH_MATCH_ASSERT("01llU", true);
+    RICH_MATCH_ASSERT("01LLu", true);
+    RICH_MATCH_ASSERT("01LLU", true);
+    RICH_MATCH_ASSERT("01ul", true);
+    RICH_MATCH_ASSERT("01uL", true);
+    RICH_MATCH_ASSERT("01Ul", true);
+    RICH_MATCH_ASSERT("01UL", true);
+    RICH_MATCH_ASSERT("01l", true);
+    RICH_MATCH_ASSERT("01lu", true);
+    RICH_MATCH_ASSERT("01lU", true);
+    RICH_MATCH_ASSERT("01L", true);
+    RICH_MATCH_ASSERT("01Lu", true);
+    RICH_MATCH_ASSERT("01LU", true);
+    RICH_MATCH_ASSERT("01u", true);
+    RICH_MATCH_ASSERT("01U", true);
+    RICH_MATCH_ASSERT("01", true);
+}
+
+// hexConstant = hexPrefix+hexDigits+integerSuffixOpt;
+TEST(RichInterpreter, HexConstant) {
+    auto interpreter = initRichInterpreter(hexConstant);
+    RICH_MATCH_ASSERT("0xbadbeef", true);
+    RICH_MATCH_ASSERT("0x1234", true);
+    RICH_MATCH_ASSERT("0x1234u", true);
+    RICH_MATCH_ASSERT("0x1234ull", true);
+}
+// binConstant = binPrefix+binDigits+integerSuffixOpt;
+TEST(RichInterpreter, BinConstant) {
+    auto interpreter = initRichInterpreter(binConstant);
+    RICH_MATCH_ASSERT("0b11", true);
+    RICH_MATCH_ASSERT("0b11", true);
+    RICH_MATCH_ASSERT("0B1001", true);
+}
+// badOctalConstant = "0[0-7]*[89]";
+TEST(RichInterpreter, BadOctalConstant) {
+    auto interpreter = initRichInterpreter(badOctalConstant);
+    RICH_MATCH_ASSERT("08", true);
+    RICH_MATCH_ASSERT("008", true);
+    RICH_MATCH_ASSERT("01239", true);
+}
+// simpelEscape = "([a-zA-Z._~!=&\\^\\-\\\\?'\"])";
+TEST(RichInterpreter, SimpelEscape) {
+    auto interpreter = initRichInterpreter(simpelEscape);
+    RICH_MATCH_ASSERT(".", true);
+    RICH_MATCH_ASSERT("_", true);
+    RICH_MATCH_ASSERT("~", true);
+    RICH_MATCH_ASSERT("!", true);
+    RICH_MATCH_ASSERT("=", true);
+    RICH_MATCH_ASSERT("&", true);
+    RICH_MATCH_ASSERT("^", true);
+    RICH_MATCH_ASSERT("-", true);
+    RICH_MATCH_ASSERT("\\", true);
+    RICH_MATCH_ASSERT("?", true);
+    RICH_MATCH_ASSERT("'", true);
+    RICH_MATCH_ASSERT("\"", true);
+}
+// decimalEscape = "([0-9]+)";
+TEST(RichInterpreter, DecimalEscape) {
+    auto interpreter = initRichInterpreter(decimalEscape);
+    RICH_MATCH_ASSERT("0", true);
+    RICH_MATCH_ASSERT("1", true);
+    RICH_MATCH_ASSERT("2", true);
+    RICH_MATCH_ASSERT("3", true);
+    RICH_MATCH_ASSERT("4", true);
+    RICH_MATCH_ASSERT("5", true);
+    RICH_MATCH_ASSERT("6", true);
+    RICH_MATCH_ASSERT("7", true);
+    RICH_MATCH_ASSERT("8", true);
+    RICH_MATCH_ASSERT("9", true);
+}
+// hexEscape = "(x[0-9a-fA-F]+)";
+TEST(RichInterpreter, HexEscape) {
+    auto interpreter = initRichInterpreter(hexEscape);
+    RICH_MATCH_ASSERT("x0", true);
+    RICH_MATCH_ASSERT("xa", true);
+    RICH_MATCH_ASSERT("xA", true);
+    RICH_MATCH_ASSERT("x0A", true);
+    RICH_MATCH_ASSERT("xaA", true);
+    RICH_MATCH_ASSERT("xg", false);
+}
+// badEscape = "([\\\\][^a-zA-Z._~^!=&\\^\\-\\\\?'\"x0-7])";
+TEST(RichInterpreter, BadEscape) {
+    auto interpreter = initRichInterpreter(badEscape);
+    RICH_MATCH_ASSERT("\\8", true);
+    RICH_MATCH_ASSERT("\\a", false);
+    RICH_MATCH_ASSERT("\\\"", false);
+}
+// escapeSequence = "(\\\\("+simpelEscape+'|'+decimalEscape+'|'+hexEscape+"))";
+TEST(RichInterpreter, EscapeSequence) {
+    auto interpreter = initRichInterpreter(escapeSequence);
+    RICH_MATCH_ASSERT("\\\\", true);
+    RICH_MATCH_ASSERT("\\^", true);
+    RICH_MATCH_ASSERT("\\x0", true);
+    RICH_MATCH_ASSERT("\\xbf", true);
+    RICH_MATCH_ASSERT("\\123", true);
+}
+// cconstChar = "([^'\\\\\\n]|"+escapeSequence+')';
+TEST(RichInterpreter, CconstChar) {
+    auto interpreter = initRichInterpreter(cconstChar);
+    RICH_MATCH_ASSERT("a", true);
+    RICH_MATCH_ASSERT("\n", false);
+}
+// charConst = "'"+cconstChar+"'";
+TEST(RichInterpreter, CharConst) {
+    auto interpreter = initRichInterpreter(charConst);
+    RICH_MATCH_ASSERT("'\\x00'", true); // beyond poor interpreter
+    RICH_MATCH_ASSERT("'a'", true);
+    RICH_MATCH_ASSERT("'\\n'", true);
+}
+// wcharConst = "L"+charConst;
+TEST(RichInterpreter, WcharConst) {
+    auto interpreter = initRichInterpreter(wcharConst);
+    RICH_MATCH_ASSERT("L'a'", true);
+    RICH_MATCH_ASSERT("L'\\n'", true);
+}
+// unmatchedQuote = "('"+cconstChar+"*\\n)|('"+cconstChar+"*$)";
+// TEST(RichInterpreter, XXXX)
+
+// badCharConst = "('"+cconstChar+"[^'\\n]+')|('')|('"+badEscape+"[^'\\n]*')";
+TEST(RichInterpreter, BadCharConst) {
+    auto interpreter = initRichInterpreter(badCharConst);
+    RICH_MATCH_ASSERT("'ab'", true);
+    RICH_MATCH_ASSERT("'\\8a'", true);
+    RICH_MATCH_ASSERT("'a'", false);
+    RICH_MATCH_ASSERT("'\\n'", false);
+}
+
+// stringChar = "([^\"\\\\\\n]|"+escapeSequence+')';
+TEST(RichInterpreter, StringChar) {
+    auto interpreter = initRichInterpreter(stringChar);
+    RICH_MATCH_ASSERT("\\\\", true);
+    RICH_MATCH_ASSERT("\\^", true);
+    RICH_MATCH_ASSERT("\\x0", true);
+    RICH_MATCH_ASSERT("\\xbf", true);
+    RICH_MATCH_ASSERT("\\123", true);
+}
+// stringLiteral = "\""+stringChar+"*\"";
+TEST(RichInterpreter, StringLiteral) {
+    auto interpreter = initRichInterpreter(stringLiteral);
+    RICH_MATCH_ASSERT("\"\\\\\"", true);
+    RICH_MATCH_ASSERT("\"buptlxb\"", true);
+}
+// wstringLiteral = "L"+stringLiteral;
+TEST(RichInterpreter, WstringLiteral) {
+    auto interpreter = initRichInterpreter(wstringLiteral);
+    RICH_MATCH_ASSERT("L\"\\\\\"", true);
+    RICH_MATCH_ASSERT("L\"buptlxb\"", true);
+}
+// badStringLiteral = "\""+stringChar+"*?"+badEscape+stringChar+"*\"";
+// TEST(RichInterpreter, XXXX)
+
+// exponentPart = "([eE][-+]?[0-9]+)";
+TEST(RichInterpreter, ExponentPart) {
+    auto interpreter = initRichInterpreter(exponentPart);
+    RICH_MATCH_ASSERT("e1", true);
+    RICH_MATCH_ASSERT("E2", true);
+    RICH_MATCH_ASSERT("e+123", true);
+    RICH_MATCH_ASSERT("e-123", true);
+    RICH_MATCH_ASSERT("E+012", true);
+    RICH_MATCH_ASSERT("E-012", true);
+}
+// fractionalConstant = "([0-9]*\\.[0-9]+)|([0-9]+\\.)";
+TEST(RichInterpreter, FractionalConstant) {
+    auto interpreter = initRichInterpreter(fractionalConstant);
+    RICH_MATCH_ASSERT(".0", true);
+    RICH_MATCH_ASSERT("0.0", true);
+    RICH_MATCH_ASSERT(".01", true);
+    RICH_MATCH_ASSERT("1.10", true);
+    RICH_MATCH_ASSERT("0.", true);
+    RICH_MATCH_ASSERT("123.", true);
+}
+// floatingConstant = "(((("+fractionalConstant+")"+exponentPart+"?)|([0-9]+"+exponentPart+"))[FfLl]?)";
+TEST(RichInterpreter, FloatingConstant) {
+    auto interpreter = initRichInterpreter(floatingConstant);
+    RICH_MATCH_ASSERT(".0", true);
+    RICH_MATCH_ASSERT("0.0", true);
+    RICH_MATCH_ASSERT(".01", true);
+    RICH_MATCH_ASSERT("1.10", true);
+    RICH_MATCH_ASSERT("0.", true);
+    RICH_MATCH_ASSERT("123.", true);
+    RICH_MATCH_ASSERT(".0e1", true);
+    RICH_MATCH_ASSERT("0.0E2", true);
+    RICH_MATCH_ASSERT(".01e+123", true);
+    RICH_MATCH_ASSERT("1.10e-123", true);
+    RICH_MATCH_ASSERT("0.E+012", true);
+    RICH_MATCH_ASSERT("123.E-012", true);
+    RICH_MATCH_ASSERT(".0F", true);
+    RICH_MATCH_ASSERT("0.0f", true);
+    RICH_MATCH_ASSERT(".01L", true);
+    RICH_MATCH_ASSERT("1.10l", true);
+}
+// binaryExponentPart = "([pP][+-]?[0-9]+)";
+TEST(RichInterpreter, BinaryExponentPart) {
+    auto interpreter = initRichInterpreter(binaryExponentPart);
+    RICH_MATCH_ASSERT("p0", true);
+    RICH_MATCH_ASSERT("p123", true);
+    RICH_MATCH_ASSERT("p+0", true);
+    RICH_MATCH_ASSERT("p-0", true);
+    RICH_MATCH_ASSERT("p+123", true);
+    RICH_MATCH_ASSERT("P0", true);
+    RICH_MATCH_ASSERT("P123", true);
+    RICH_MATCH_ASSERT("P+0", true);
+    RICH_MATCH_ASSERT("P-0", true);
+    RICH_MATCH_ASSERT("P+123", true);
+}
+// hexFractionalConstant = "((("+hexDigits+")?\\."+hexDigits+")|("+hexDigits+"\\.))";
+TEST(RichInterpreter, HexFractionalConstant) {
+    auto interpreter = initRichInterpreter(hexFractionalConstant);
+    RICH_MATCH_ASSERT("badbeef.0123", true);
+    RICH_MATCH_ASSERT("0123.badbeef", true);
+    RICH_MATCH_ASSERT("badbeef.", true);
+    RICH_MATCH_ASSERT("0123.", true);
+    RICH_MATCH_ASSERT("123badbeef.badbeef123", true);
+}
+// hexFloatingConstant = "("+hexPrefix+"("+hexDigits+"|"+hexFractionalConstant+")"+binaryExponentPart+"[FfLl]?)";
+TEST(RichInterpreter, HexFloatingConstant) {
+    auto interpreter = initRichInterpreter(hexFloatingConstant);
+    RICH_MATCH_ASSERT("0xbadbeep0f", true);
+    RICH_MATCH_ASSERT("0xbadbeef.213P0", true);
+    RICH_MATCH_ASSERT("0xbadbeef.213p+0F", true);
+    RICH_MATCH_ASSERT("0xbadbeef.213p-0f", true);
+    RICH_MATCH_ASSERT("0xbadbeef.213p+123l", true);
+    RICH_MATCH_ASSERT("0xbadbeef.213P-123L", true);
+    RICH_MATCH_ASSERT("0Xbadbeep0f", true);
+    RICH_MATCH_ASSERT("0Xbadbeef.213P0", true);
+    RICH_MATCH_ASSERT("0Xbadbeef.213p+0F", true);
+    RICH_MATCH_ASSERT("0Xbadbeef.213p-0f", true);
+    RICH_MATCH_ASSERT("0Xbadbeef.213p+123l", true);
+    RICH_MATCH_ASSERT("0Xbadbeef.213P-123L", true);
+}
 // Step 3. Call RUN_ALL_TESTS() in main().
 //
 // We do this by linking in src/gtest_main.cc file, which consists of

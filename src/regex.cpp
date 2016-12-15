@@ -24,18 +24,16 @@ int main(int argc, char *argv[])
     regex->setUnify(unifiedRanges);
     auto automaton = regex->generateEpsilonNfa();
     automaton->toMermaid(std::cout) << std::endl;
-    auto dfa = powerset(automaton, poorEpsilonChecker);
+    auto dfa = powerset(automaton, richEpsilonChecker);
     dfa->toMermaid(std::cout) << std::endl;
     dfa = Hopcroft(dfa);
     dfa->toMermaid(std::cout) << std::endl;
-    PoorInterpreter *iterpreter = new PoorInterpreter(dfa);
-    //for (auto range : unifiedRanges) {
-    //    std::cout << repr(range.begin) << "-->" << repr(range.end) << std::endl;
-    //}
+    RichInterpreter *iterpreter = new RichInterpreter(dfa);
+    std::cout << "Case #\tMatch\tStart\tLength\tAccept\tTerminate" << std::endl;
     for (int i = 2; i < argc; ++i) {
-        PoorInterpreter::Result result;
+        RichInterpreter::Result result;
         bool match = iterpreter->search(argv[i], &result);
-        std::cout << "Case #" << i-1 << ": " << std::boolalpha << match << "(" << result.start << ", " << result.length << ", " << result.terminateState << ", " << result.acceptedState << ")" << std::endl;
+        std::cout << i-1 << "\t" << std::boolalpha << match << "\t" << result.start << "\t" << result.length << "\t" << result.terminateState << "\t" << result.acceptedState << std::endl;
     }
     return 0;
 }

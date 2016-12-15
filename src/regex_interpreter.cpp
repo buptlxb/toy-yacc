@@ -91,8 +91,10 @@ bool PoorInterpreter::searchHead(const char *input, Result *result, uint32_t off
     return acceptedState != InvalidState;
 }
 
-RichInterpreter::RichInterpreter(Automaton::Ptr _dfa) : dfa(_dfa) {
+RichInterpreter::RichInterpreter(Automaton::Ptr _dfa) : dfa(_dfa), savedMap(dfa->states.size()) {
+    int32_t index = 0;
     for (auto state : dfa->states) {
+        stateMap.emplace(state, index);
         int32_t charEdge = 0, nonCharEdge = 0;
         for (auto transition : state->outbounds) {
             switch (transition->type) {
@@ -103,7 +105,7 @@ RichInterpreter::RichInterpreter(Automaton::Ptr _dfa) : dfa(_dfa) {
                     ++nonCharEdge;
             }
         }
-        stateMap[state] = nonCharEdge > 1 || nonCharEdge && charEdge;
+        savedMap[index++] = nonCharEdge > 1 || nonCharEdge && charEdge;
     }
 }
 
@@ -131,7 +133,7 @@ bool RichInterpreter::searchHead(const char *input, Result *result, uint32_t off
     currentStatus.state = dfa->startState;
     currentStatus.reading = input;
     currentStatus.transition = dfa->startState->outbounds.begin();
-    while (!currentStatus.state->isAccepted) {
+    while (true) {
         StatusSaver saved = currentStatus;
         bool found = false;
         for (auto transition = currentStatus.transition; transition != currentStatus.state->outbounds.end(); ++transition) {
@@ -155,7 +157,7 @@ bool RichInterpreter::searchHead(const char *input, Result *result, uint32_t off
                     assertm(0, "Unkown transition type");
             }
             if (found) {
-                if (stateMap[currentStatus.state]) {
+                if (savedMap[stateMap[currentStatus.state]]) {
                     saved.transition = transition;
                     ++(saved.transition);
                     statusStack.push(saved);
@@ -165,19 +167,23 @@ bool RichInterpreter::searchHead(const char *input, Result *result, uint32_t off
                 break;
             }
         }
+        if (currentStatus.state->isAccepted && (!found || *currentStatus.reading == '\0'))
+            break;
         if (!found) {
             if (!statusStack.empty()) {
                 currentStatus = statusStack.top();
                 statusStack.pop();
             } else
                 break;
+            if (currentStatus.state->isAccepted)
+                break;
         }
     }
     if (result) {
         result->start = offset;
         result->length = currentStatus.reading - input;
-        result->terminateState = currentStatus.state;
-        result->acceptedState = currentStatus.state;
+        result->terminateState = stateMap[currentStatus.state];
+        result->acceptedState = stateMap[currentStatus.state];
     }
     return currentStatus.state->isAccepted;
 }

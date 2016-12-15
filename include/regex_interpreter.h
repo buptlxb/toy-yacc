@@ -35,8 +35,8 @@ public:
     struct Result {
         int32_t start;
         int32_t length;
-        State::Ptr terminateState;
-        State::Ptr acceptedState;
+        int32_t terminateState;
+        int32_t acceptedState;
     };
     struct StatusSaver {
         State::Ptr state;
@@ -45,7 +45,8 @@ public:
     };
 protected:
     Automaton::Ptr dfa;
-    std::unordered_map<State::Ptr, bool> stateMap;
+    std::unordered_map<State::Ptr, int32_t> stateMap;
+    std::vector<bool> savedMap;
 public:
     RichInterpreter(Automaton::Ptr dfa);
     bool match(const char *input);
