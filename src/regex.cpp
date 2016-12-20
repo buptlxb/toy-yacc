@@ -24,9 +24,11 @@ int main(int argc, char *argv[])
     regex->setUnify(unifiedRanges);
     auto automaton = regex->generateEpsilonNfa();
     automaton->toMermaid(std::cout) << std::endl;
-    auto dfa = powerset(automaton, richEpsilonChecker);
+    std::map<State::List, State::Ptr> nfaStateMap;
+    auto dfa = powerset(automaton, richEpsilonChecker, nfaStateMap);
     dfa->toMermaid(std::cout) << std::endl;
-    dfa = Hopcroft(dfa);
+    std::map<State::Ptr, State::Ptr> dfaStateMap;
+    dfa = Hopcroft(dfa, dfaStateMap);
     dfa->toMermaid(std::cout) << std::endl;
     RichInterpreter *iterpreter = new RichInterpreter(dfa);
     std::cout << "Case #\tMatch\tStart\tLength\tAccept\tTerminate" << std::endl;

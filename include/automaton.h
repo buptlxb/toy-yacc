@@ -2,6 +2,7 @@
 #define AUTOMATON_H
 
 #include <set>
+#include <map>
 #include <iosfwd>
 #include <unordered_map>
 #include <list>
@@ -68,10 +69,10 @@ public:
 extern bool poorEpsilonChecker(Transition::Ptr);
 extern bool richEpsilonChecker(Transition::Ptr);
 extern bool epsilonClosure(typename State::Ptr nfaState, bool (*epsilonChecker)(Transition::Ptr), State::Set &epsilonStates, Transition::Map<State::Set> &transitions);
-extern Automaton::Ptr powerset(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr));
+extern Automaton::Ptr powerset(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr), std::map<State::List, State::Ptr> &);
 extern std::vector<State::Set> split(State::Set states, const std::set<State::Set> &partition);
-extern Automaton::Ptr Hopcroft(Automaton::Ptr dfa);
-extern Automaton::Ptr Brzozowski(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr));
+extern Automaton::Ptr Hopcroft(Automaton::Ptr dfa, std::map<State::Ptr, State::Ptr> &);
+// extern Automaton::Ptr Brzozowski(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr));
 
 struct EpsilonNfa {
     State::Ptr start;

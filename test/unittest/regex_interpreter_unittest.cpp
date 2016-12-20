@@ -96,8 +96,10 @@ PoorInterpreter::Ptr initPoorInterpreter(string re) {
     regex->setNormalize(&unifiedRanges);
     regex->setUnify(unifiedRanges);
     auto nfa = regex->generateEpsilonNfa();
-    auto dfa = powerset(nfa, poorEpsilonChecker);
-    auto mdfa = Hopcroft(dfa);
+    std::map<State::List, State::Ptr> nfaStateMap;
+    auto dfa = powerset(nfa, poorEpsilonChecker, nfaStateMap);
+    std::map<State::Ptr, State::Ptr> dfaStateMap;
+    auto mdfa = Hopcroft(dfa, dfaStateMap);
     //mdfa->toMermaid(std::cout);
     return PoorInterpreter::Ptr(new PoorInterpreter(mdfa));
 }
@@ -441,8 +443,10 @@ RichInterpreter::Ptr initRichInterpreter(string re) {
     regex->setNormalize(&unifiedRanges);
     regex->setUnify(unifiedRanges);
     auto nfa = regex->generateEpsilonNfa();
-    auto dfa = powerset(nfa, richEpsilonChecker);
-    auto mdfa = Hopcroft(dfa);
+    std::map<State::List, State::Ptr> nfaStateMap;
+    auto dfa = powerset(nfa, richEpsilonChecker, nfaStateMap);
+    std::map<State::Ptr, State::Ptr> dfaStateMap;
+    auto mdfa = Hopcroft(dfa, dfaStateMap);
     //mdfa->toMermaid(std::cout);
     return RichInterpreter::Ptr(new RichInterpreter(mdfa));
 }

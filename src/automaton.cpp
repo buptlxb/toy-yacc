@@ -203,9 +203,9 @@ bool epsilonClosure(typename State::Ptr nfaState, bool (*epsilonChecker)(Transit
     return isAccepted;
 }
 
-Automaton::Ptr powerset(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr)) {
+Automaton::Ptr powerset(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr), std::map<State::List, State::Ptr> &stateMap) {
     Automaton::Ptr dfa(new Automaton);
-    std::map<State::List, State::Ptr> dict;
+    //std::map<State::List, State::Ptr> stateMap;
     std::queue<State::List> statesQ;
     std::queue<Transition::Map<State::List>> transitionsQ;
     std::queue<Transition::List> precedenceQ;
@@ -221,7 +221,7 @@ Automaton::Ptr powerset(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::P
     statesQ.push(epsilonStates);
     transitionsQ.push(transitions);
     precedenceQ.push(precedence);
-    dict.emplace(epsilonStates, dfa->startState);
+    stateMap.emplace(epsilonStates, dfa->startState);
 
     while (!statesQ.empty()) {
         State::List curStates = statesQ.front();
@@ -238,15 +238,15 @@ Automaton::Ptr powerset(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::P
             isAccepted = false;
             for (auto s : curTransitions[t])
                 isAccepted |= epsilonClosure(s, epsilonChecker, epsilonStates, epsilonSet, transitions, precedence);
-            if (dict.find(epsilonStates) == dict.end()) {
+            if (stateMap.find(epsilonStates) == stateMap.end()) {
                 State::Ptr dfaState = dfa->getState();
                 dfaState->isAccepted = isAccepted;
-                dict.emplace(epsilonStates, dfaState);
+                stateMap.emplace(epsilonStates, dfaState);
                 statesQ.push(epsilonStates);
                 transitionsQ.push(transitions);
                 precedenceQ.push(precedence);
             }
-            Transition::Ptr transition = dfa->getTransition(dict[curStates], dict[epsilonStates]);
+            Transition::Ptr transition = dfa->getTransition(stateMap[curStates], stateMap[epsilonStates]);
             transition->type = t->type;
             transition->range = t->range;
         }
@@ -285,7 +285,7 @@ std::vector<State::Set> split(State::Set states, const std::set<State::Set> &par
     return ret;
 }
 
-Automaton::Ptr Hopcroft(Automaton::Ptr dfa) {
+Automaton::Ptr Hopcroft(Automaton::Ptr dfa, std::map<State::Ptr, State::Ptr> &stateMap) {
     State::Set acceptedStates, nonacceptedStates;
     for (auto state : dfa->states) {
         if (state->isAccepted)
@@ -311,7 +311,7 @@ Automaton::Ptr Hopcroft(Automaton::Ptr dfa) {
     }
 
     Automaton::Ptr mdfa = Automaton::Ptr(new Automaton);
-    std::map<State::Ptr, State::Ptr> stateMap;
+    //std::map<State::Ptr, State::Ptr> stateMap;
     for (auto &states : partitions) {
         auto mdfaState = mdfa->getState();
         for (auto &dfaState : states) {
@@ -333,22 +333,17 @@ Automaton::Ptr Hopcroft(Automaton::Ptr dfa) {
     return mdfa;
 }
 
-Automaton::Ptr Brzozowski(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr)) {
-    //nfa->toMermaid(std::cout) << std::endl;
-    nfa->reverse();
-    //nfa->toMermaid(std::cout) << std::endl;
-    auto tdfa = powerset(nfa, epsilonChecker);
-    //tdfa->toMermaid(std::cout) << std::endl;
-    tdfa->reachableTrim();
-    //tdfa->toMermaid(std::cout) << std::endl;
-    tdfa->reverse();
-    //tdfa->toMermaid(std::cout) << std::endl;
-    auto mdfa = powerset(tdfa, epsilonChecker);
-    mdfa->toMermaid(std::cout) << std::endl;
-    //mdfa->reachableTrim();
-    mdfa->toMermaid(std::cout) << std::endl;
-    return mdfa;
-}
+// Automaton::Ptr Brzozowski(Automaton::Ptr nfa, bool (*epsilonChecker)(Transition::Ptr)) {
+//     nfa->reverse();
+//     auto tdfa = powerset(nfa, epsilonChecker);
+//     tdfa->reachableTrim();
+//     tdfa->reverse();
+//     auto mdfa = powerset(tdfa, epsilonChecker);
+//     mdfa->toMermaid(std::cout) << std::endl;
+//     mdfa->reachableTrim();
+//     mdfa->toMermaid(std::cout) << std::endl;
+//     return mdfa;
+// }
 
 void print(Automaton::Ptr automaton) {
     for (auto state : automaton->states) {
